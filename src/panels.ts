@@ -10,9 +10,6 @@ export const colorByZone = true
 // @panel
 export const showRestingLine = true
 
-// @panel {type:'menu',items:['capsule','rounded','bar']}
-export const barShape = 'capsule'
-
 // Render a synthetic day of heart rate so the chart is visible without real
 // HealthKit data (useful right after pasting, or on devices with no readings).
 // Leave off for live data.

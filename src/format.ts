@@ -18,8 +18,8 @@ export function formatRange(min?: number, max?: number): string {
 	return `${Math.round(min)}-${Math.round(max)}`
 }
 
-// Hour ticks shown under the chart at the 0/6/12/18/24 boundaries, evenly
+// 24-hour ticks shown under the chart at the 0/6/12/18/24 boundaries, evenly
 // spaced so labels never crowd.
 export function hourTickLabels(): string[] {
-	return ['12a', '6a', '12p', '6p', '12a']
+	return ['0', '6', '12', '18', '24']
 }

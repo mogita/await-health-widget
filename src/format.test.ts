@@ -27,6 +27,6 @@ test('formatRange: missing bound renders --', () => {
 
 // hourTickLabels
 
-test('hourTickLabels: five evenly spaced ticks', () => {
-	expect(hourTickLabels()).toEqual(['12a', '6a', '12p', '6p', '12a'])
+test('hourTickLabels: five evenly spaced 24-hour ticks', () => {
+	expect(hourTickLabels()).toEqual(['0', '6', '12', '18', '24'])
 })

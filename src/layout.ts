@@ -9,11 +9,11 @@ export type ChartKind = 'system' | 'compact' | 'inline'
 
 export type ChartLayout = {
 	padding: number
+	spacing: number
 	plotWidth: number
 	plotHeight: number
 	barWidth: number
 	gap: number
-	radius: number
 	showHeader: boolean
 	showAxis: boolean
 }
@@ -30,6 +30,7 @@ export function classifyFamily(family: WidgetFamily): ChartKind {
 // 24 (one per hour); bars thin down to fit rather than dropping hours.
 export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 	const padding = kind === 'system' ? 12 : kind === 'compact' ? 4 : 0
+	const spacing = kind === 'system' ? 6 : 0
 	const innerW = Math.max(1, size.width - padding * 2)
 	const innerH = Math.max(1, size.height - padding * 2)
 
@@ -38,23 +39,25 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 	const headerH = showHeader ? 22 : 0
 	const axisH = showAxis ? 14 : 0
 
+	// The column holds header + chart + axis stacked with `spacing` between each
+	// visible pair; subtract those gaps so the plot fits exactly, not overflows.
+	const gaps = (showHeader ? 1 : 0) + (showAxis ? 1 : 0)
 	const plotWidth = innerW
-	const plotHeight = Math.max(1, innerH - headerH - axisH)
+	const plotHeight = Math.max(1, innerH - headerH - axisH - spacing * gaps)
 
 	const gap = innerW >= 240 ? 3 : innerW >= 140 ? 2 : 1
 	const barWidth = Math.max(
 		0.5,
 		(plotWidth - gap * (DAY_HOURS - 1)) / DAY_HOURS,
 	)
-	const radius = Math.min(barWidth / 2, 3)
 
 	return {
 		padding,
+		spacing,
 		plotWidth,
 		plotHeight,
 		barWidth,
 		gap,
-		radius,
 		showHeader,
 		showAxis,
 	}

@@ -4,7 +4,6 @@ import {
 	HStack,
 	Icon,
 	Rectangle,
-	RoundedRectangle,
 	Spacer,
 	Text,
 	VStack,
@@ -28,7 +27,7 @@ import {
 	computeLayout,
 	valueToY,
 } from './layout'
-import { accentColor, barShape, colorByZone, showRestingLine } from './panels'
+import { accentColor, colorByZone, showRestingLine } from './panels'
 
 export function widget(entry: WidgetEntry<Entry>): NativeView {
 	const kind = classifyFamily(entry.family)
@@ -59,7 +58,7 @@ export function widget(entry: WidgetEntry<Entry>): NativeView {
 			<Color value={BACKGROUND} />
 			<VStack
 				alignment='leading'
-				spacing={6}
+				spacing={layout.spacing}
 				padding={layout.padding}
 				frame={{ maxWidth: 'max', maxHeight: 'max', alignment: 'topLeading' }}
 			>
@@ -76,35 +75,50 @@ function chartView(
 	domain: Domain,
 	layout: ChartLayout,
 ): NativeView {
-	const restY =
-		entry.restingHr === undefined
-			? undefined
-			: valueToY(entry.restingHr, domain, layout.plotHeight)
-
+	// Layered, every layer the same plotWidth x plotHeight box anchored top-left
+	// so they register: a bottom baseline, an optional resting line, and the
+	// candle columns on top. Vertical placement uses stacked fixed-height blocks
+	// that sum to exactly plotHeight (no offset, no Spacer), so each element
+	// lands precisely where its value maps and nothing can overflow or compress.
+	const h = layout.plotHeight
 	return (
-		<ZStack
-			alignment='topLeading'
-			width={layout.plotWidth}
-			height={layout.plotHeight}
-		>
-			<Rectangle
-				fill={AXIS_COLOR}
-				width={layout.plotWidth}
-				height={1}
-				offsetY={layout.plotHeight - 1}
-			/>
-			{showRestingLine && restY !== undefined ? (
-				<Rectangle
-					fill={['gray', 0.45]}
-					width={layout.plotWidth}
-					height={1}
-					offsetY={restY}
-				/>
-			) : undefined}
-			<HStack spacing={layout.gap} alignment='top'>
+		<ZStack alignment='topLeading' width={layout.plotWidth} height={h}>
+			<VStack spacing={0} width={layout.plotWidth} height={h}>
+				<Rectangle fill={['gray', 0]} width={layout.plotWidth} height={h - 1} />
+				<Rectangle fill={AXIS_COLOR} width={layout.plotWidth} height={1} />
+			</VStack>
+			{showRestingLine && entry.restingHr !== undefined
+				? restingLine(entry.restingHr, domain, layout)
+				: undefined}
+			<HStack
+				spacing={layout.gap}
+				alignment='top'
+				frame={{ width: layout.plotWidth, height: h }}
+			>
 				{entry.buckets.map((bucket) => candleColumn(bucket, domain, layout))}
 			</HStack>
 		</ZStack>
+	)
+}
+
+function restingLine(
+	resting: number,
+	domain: Domain,
+	layout: ChartLayout,
+): NativeView {
+	const h = layout.plotHeight
+	// Clamp so the line (1px) plus the gap above it never exceeds the plot.
+	const y = Math.min(valueToY(resting, domain, h), h - 1)
+	return (
+		<VStack spacing={0} width={layout.plotWidth} height={h}>
+			<Rectangle fill={['gray', 0]} width={layout.plotWidth} height={y} />
+			<Rectangle fill={['gray', 0.45]} width={layout.plotWidth} height={1} />
+			<Rectangle
+				fill={['gray', 0]}
+				width={layout.plotWidth}
+				height={h - y - 1}
+			/>
+		</VStack>
 	)
 }
 
@@ -113,63 +127,41 @@ function candleColumn(
 	domain: Domain,
 	layout: ChartLayout,
 ): NativeView {
-	// Every column is the same fixed-size ZStack so the 24 hours stay aligned
-	// whether or not an hour has readings. Empty hours hold a transparent
-	// baseline tick; data hours hold the offset candle body.
-	let child: NativeView
+	const h = layout.plotHeight
+	// Empty hours reserve the column width with a transparent full-height block
+	// so the 24 columns stay aligned.
 	if (bucket.count === 0) {
-		child = (
+		return (
+			<Rectangle
+				id={`h${bucket.hour}`}
+				fill={['gray', 0]}
+				width={layout.barWidth}
+				height={h}
+			/>
+		)
+	}
+
+	// A floating candle: transparent top gap (down to the hour's max), the
+	// min..max capsule, then a transparent bottom gap. The three fixed heights
+	// sum to plotHeight (candleGeometry guarantees top + height <= plotHeight).
+	const geo = candleGeometry(bucket, domain, h)
+	const color = colorByZone ? zoneColor(bucket.avg) : accentColor
+	return (
+		<VStack
+			id={`h${bucket.hour}`}
+			spacing={0}
+			width={layout.barWidth}
+			height={h}
+		>
+			<Rectangle fill={['gray', 0]} width={layout.barWidth} height={geo.top} />
+			<Capsule fill={color} width={layout.barWidth} height={geo.height} />
 			<Rectangle
 				fill={['gray', 0]}
 				width={layout.barWidth}
-				height={1}
-				offsetY={layout.plotHeight - 1}
+				height={h - geo.top - geo.height}
 			/>
-		)
-	} else {
-		const geo = candleGeometry(bucket, domain, layout.plotHeight)
-		const color = colorByZone ? zoneColor(bucket.avg) : accentColor
-		child = bar(color, layout.barWidth, geo.height, geo.top, layout.radius)
-	}
-
-	return (
-		<ZStack
-			id={`h${bucket.hour}`}
-			alignment='top'
-			width={layout.barWidth}
-			height={layout.plotHeight}
-		>
-			{child}
-		</ZStack>
+		</VStack>
 	)
-}
-
-function bar(
-	color: Color,
-	width: number,
-	height: number,
-	top: number,
-	radius: number,
-): NativeView {
-	// Widened: the panel can swap the value at runtime, so compare as string.
-	const shape: string = barShape
-	if (shape === 'bar') {
-		return (
-			<Rectangle fill={color} width={width} height={height} offsetY={top} />
-		)
-	}
-	if (shape === 'rounded') {
-		return (
-			<RoundedRectangle
-				rectRadius={radius}
-				fill={color}
-				width={width}
-				height={height}
-				offsetY={top}
-			/>
-		)
-	}
-	return <Capsule fill={color} width={width} height={height} offsetY={top} />
 }
 
 function headerView(entry: Entry): NativeView {
