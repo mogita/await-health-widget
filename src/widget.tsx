@@ -9,7 +9,13 @@ import {
 	VStack,
 	ZStack,
 } from 'await'
-import { AXIS_COLOR, BACKGROUND, GRID_COLOR, zoneColor } from './config'
+import {
+	AXIS_COLOR,
+	BACKGROUND,
+	GRID_COLOR,
+	MIN_BODY,
+	zoneColor,
+} from './config'
 import { formatBpm, formatRange, hourTickLabels } from './format'
 import {
 	computeDomain,
@@ -18,14 +24,15 @@ import {
 	dayStats,
 	type Entry,
 	type HourBucket,
+	type Segment,
 } from './health'
 import {
 	bpmTicks,
 	type ChartKind,
 	type ChartLayout,
-	candleGeometry,
 	classifyFamily,
 	computeLayout,
+	segmentGeometry,
 	valueToY,
 } from './layout'
 import { accentColor, colorByZone, showRestingLine } from './panels'
@@ -111,7 +118,7 @@ function chartView(
 					)
 				: undefined}
 			<HStack
-				spacing={layout.gap}
+				spacing={0}
 				alignment='top'
 				frame={{ width: layout.plotWidth, height: h }}
 			>
@@ -181,36 +188,64 @@ function candleColumn(
 	layout: ChartLayout,
 ): NativeView {
 	const h = layout.plotHeight
-	// Empty hours reserve the column width with a transparent full-height block
-	// so the 24 columns stay aligned.
-	if (bucket.count === 0) {
+	// Empty hours reserve the slot width with a transparent full-height block so
+	// the 24 columns stay aligned and the hour reads as a gap.
+	if (bucket.count === 0 || bucket.segments.length === 0) {
 		return (
 			<Rectangle
 				id={`h${bucket.hour}`}
 				fill={['gray', 0]}
-				width={layout.barWidth}
+				width={layout.slot}
 				height={h}
 			/>
 		)
 	}
 
-	// A floating candle: transparent top gap (down to the hour's max), the
-	// min..max capsule, then a transparent bottom gap. The three fixed heights
-	// sum to plotHeight (candleGeometry guarantees top + height <= plotHeight).
-	const geo = candleGeometry(bucket, domain, h)
-	const color = colorByZone ? zoneColor(bucket.avg) : accentColor
+	// One capsule per detached BPM segment, each floated to its band. Layered in
+	// a slot-wide ZStack so a spike sits separate from the resting band.
 	return (
-		<VStack
+		<ZStack
 			id={`h${bucket.hour}`}
-			spacing={0}
-			width={layout.barWidth}
+			alignment='topLeading'
+			width={layout.slot}
 			height={h}
 		>
-			<Rectangle fill={['gray', 0]} width={layout.barWidth} height={geo.top} />
+			{bucket.segments.map((segment, i) =>
+				segmentBar(segment, domain, layout, i),
+			)}
+		</ZStack>
+	)
+}
+
+// A single segment's capsule, centered in the slot and floated to its band by
+// fixed-height transparent blocks above and below (no offset, no Spacer). A
+// flat single-reading segment renders as a round dot (height clamped to width).
+function segmentBar(
+	segment: Segment,
+	domain: Domain,
+	layout: ChartLayout,
+	index: number,
+): NativeView {
+	const h = layout.plotHeight
+	// Floor the dot/segment at MIN_BODY so a single reading stays visible even
+	// on small widgets, but let it grow to barWidth so it reads as a round dot.
+	const minBody = Math.max(MIN_BODY, layout.barWidth)
+	const geo = segmentGeometry(segment.min, segment.max, domain, h, minBody)
+	const mid = (segment.min + segment.max) / 2
+	const color = colorByZone ? zoneColor(mid) : accentColor
+	return (
+		<VStack
+			id={`s${index}`}
+			alignment='center'
+			spacing={0}
+			width={layout.slot}
+			height={h}
+		>
+			<Rectangle fill={['gray', 0]} width={layout.slot} height={geo.top} />
 			<Capsule fill={color} width={layout.barWidth} height={geo.height} />
 			<Rectangle
 				fill={['gray', 0]}
-				width={layout.barWidth}
+				width={layout.slot}
 				height={h - geo.top - geo.height}
 			/>
 		</VStack>

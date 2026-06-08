@@ -6,16 +6,27 @@ import {
 	HOUR_MS,
 	MIN_DOMAIN_PAD,
 	MIN_DOMAIN_SPAN,
+	SEGMENT_GAP_BPM,
 } from './config'
 
-// One hour's worth of heart-rate readings, reduced to the values a candle
-// needs. `count === 0` marks an hour with no data (renders as a gap).
+// A contiguous BPM range within an hour. An hour with a value gap (e.g. a
+// resting band plus a lone spike) yields more than one segment so the spike
+// renders detached rather than bridged.
+export type Segment = {
+	min: number
+	max: number
+}
+
+// One hour's worth of heart-rate readings. `count === 0` marks an hour with no
+// data (renders as a gap). `segments` carries the detached BPM bands to draw;
+// `min`/`max`/`avg` are the hour's overall stats.
 export type HourBucket = {
 	hour: number
 	min: number
 	max: number
 	avg: number
 	count: number
+	segments: Segment[]
 }
 
 export type Domain = {
@@ -44,19 +55,35 @@ export function startOfDayMs(now: Date): number {
 	return d.getTime()
 }
 
-// Fold raw samples into 24 hourly buckets keyed by local wall-clock hour.
-// Samples outside the local day [dayStart, next local midnight) are ignored.
+// Split sorted-or-unsorted readings into contiguous BPM bands. A jump greater
+// than `gap` between adjacent (sorted) values starts a new band, so an outlier
+// becomes its own segment instead of stretching one tall bar.
+export function clusterSegments(values: number[], gap: number): Segment[] {
+	if (values.length === 0) return []
+	const sorted = [...values].sort((a, b) => a - b)
+	const segments: Segment[] = []
+	let lo = sorted[0]!
+	let hi = sorted[0]!
+	for (let i = 1; i < sorted.length; i++) {
+		const v = sorted[i]!
+		if (v - hi > gap) {
+			segments.push({ min: lo, max: hi })
+			lo = v
+		}
+		hi = v
+	}
+	segments.push({ min: lo, max: hi })
+	return segments
+}
+
+// Fold raw samples into 24 hourly buckets keyed by local wall-clock hour, each
+// with its detached BPM segments. Samples outside the local day
+// [dayStart, next local midnight) are ignored.
 export function bucketSamples(
 	samples: AwaitHealthQuantitySample[],
 	dayStartMs: number,
 ): HourBucket[] {
-	const acc = Array.from({ length: DAY_HOURS }, (_unused, hour) => ({
-		hour,
-		min: Number.POSITIVE_INFINITY,
-		max: Number.NEGATIVE_INFINITY,
-		sum: 0,
-		count: 0,
-	}))
+	const perHour: number[][] = Array.from({ length: DAY_HOURS }, () => [])
 
 	// Next local midnight via calendar arithmetic, so a daylight-saving
 	// transition (a 23- or 25-hour local day) still bounds the day correctly.
@@ -72,24 +99,30 @@ export function bucketSamples(
 		if (t < dayStartMs || t >= nextMs) continue
 		// Key by local wall-clock hour (0..23) so candles align with the hour
 		// labels even across a DST change, rather than by elapsed milliseconds.
-		const bucket = acc[sample.startDate.getHours()]!
-		if (value < bucket.min) bucket.min = value
-		if (value > bucket.max) bucket.max = value
-		bucket.sum += value
-		bucket.count += 1
+		perHour[sample.startDate.getHours()]!.push(value)
 	}
 
-	return acc.map((b) =>
-		b.count === 0
-			? { hour: b.hour, min: 0, max: 0, avg: 0, count: 0 }
-			: {
-					hour: b.hour,
-					min: b.min,
-					max: b.max,
-					avg: b.sum / b.count,
-					count: b.count,
-				},
-	)
+	return perHour.map((values, hour) => {
+		if (values.length === 0) {
+			return { hour, min: 0, max: 0, avg: 0, count: 0, segments: [] }
+		}
+		let min = Number.POSITIVE_INFINITY
+		let max = Number.NEGATIVE_INFINITY
+		let sum = 0
+		for (const v of values) {
+			if (v < min) min = v
+			if (v > max) max = v
+			sum += v
+		}
+		return {
+			hour,
+			min,
+			max,
+			avg: sum / values.length,
+			count: values.length,
+			segments: clusterSegments(values, SEGMENT_GAP_BPM),
+		}
+	})
 }
 
 export function hasData(buckets: HourBucket[]): boolean {
@@ -177,6 +210,18 @@ export function generateSampleDay(
 				startDate: new Date(at),
 				endDate: new Date(at),
 			})
+		}
+		// A lone mid-morning spike inside an otherwise calm hour, to show a
+		// detached segment (the resting band plus a separate dot).
+		if (hour === 8) {
+			const at = dayStartMs + hour * HOUR_MS + Math.floor(HOUR_MS / 2)
+			if (at <= nowMs) {
+				samples.push({
+					value: 134,
+					startDate: new Date(at),
+					endDate: new Date(at),
+				})
+			}
 		}
 	}
 	return samples

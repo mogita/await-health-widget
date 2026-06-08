@@ -15,6 +15,12 @@ export const MIN_DOMAIN_SPAN = 24
 // Smallest candle body in points, so a single-reading hour stays visible.
 export const MIN_BODY = 3
 
+// Within one hour, sorted readings more than this many BPM apart start a new
+// segment, so an outlier (e.g. a brief spike) shows detached from the main
+// band instead of being bridged into one tall bar. This is a value-distance
+// gap, not a time gap; very sparse sampling during a fast climb can fragment.
+export const SEGMENT_GAP_BPM = 25
+
 // Widget chrome colors. BACKGROUND is the named system background (system
 // families only; lock-screen families stay clear). AXIS_COLOR is a faint gray.
 export const BACKGROUND = 'background'

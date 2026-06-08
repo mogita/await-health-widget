@@ -1,19 +1,15 @@
 import { expect, test } from 'bun:test'
 import { MIN_BODY } from './config'
-import type { Domain, HourBucket } from './health'
+import type { Domain } from './health'
 import {
 	bpmTicks,
-	candleGeometry,
 	classifyFamily,
 	computeLayout,
+	segmentGeometry,
 	valueToY,
 } from './layout'
 
 const DOMAIN: Domain = { lo: 50, hi: 150 }
-
-function bucket(min: number, max: number, count = 3): HourBucket {
-	return { hour: 0, min, max, avg: (min + max) / 2, count }
-}
 
 // classifyFamily
 
@@ -40,12 +36,17 @@ test('classifyFamily: system families are system', () => {
 
 // computeLayout
 
-test('computeLayout: fits 24 bars within the plot width', () => {
+test('computeLayout: 24 equal slots fill the plot, bars thinner than slots', () => {
 	const layout = computeLayout({ width: 360, height: 340 }, 'system')
-	const used = layout.barWidth * 24 + layout.gap * 23
-	expect(used).toBeLessThanOrEqual(layout.plotWidth + 0.001)
+	expect(layout.slot * 24).toBeCloseTo(layout.plotWidth, 6)
 	expect(layout.barWidth).toBeGreaterThan(0)
+	expect(layout.barWidth).toBeLessThan(layout.slot)
 	expect(layout.plotHeight).toBeGreaterThan(0)
+})
+
+test('computeLayout: bar width is capped so wide widgets do not look fat', () => {
+	const layout = computeLayout({ width: 720, height: 680 }, 'system')
+	expect(layout.barWidth).toBeLessThanOrEqual(7)
 })
 
 test('computeLayout: large widget shows header and axis', () => {
@@ -75,11 +76,17 @@ test('computeLayout: wide system widget reserves the y-axis label strip', () => 
 	expect(layout.plotWidth).toBeLessThan(360 - 24)
 })
 
-test('computeLayout: narrow + compact widgets omit the y-axis', () => {
+test('computeLayout: small system shows the y-axis; compact omits it', () => {
 	expect(computeLayout({ width: 160, height: 160 }, 'system').showYAxis).toBe(
-		false,
+		true,
 	)
 	expect(computeLayout({ width: 160, height: 160 }, 'compact').showYAxis).toBe(
+		false,
+	)
+})
+
+test('computeLayout: a degenerately narrow widget omits the y-axis', () => {
+	expect(computeLayout({ width: 100, height: 160 }, 'system').showYAxis).toBe(
 		false,
 	)
 })
@@ -130,38 +137,39 @@ test('valueToY: zero or negative span maps to the bottom', () => {
 	expect(valueToY(100, { lo: 100, hi: 100 }, 200)).toBe(200)
 })
 
-// candleGeometry
+// segmentGeometry
 
-test('candleGeometry: full-range hour spans the plot', () => {
-	const geo = candleGeometry(bucket(50, 150), DOMAIN, 200)
+test('segmentGeometry: full-range segment spans the plot', () => {
+	const geo = segmentGeometry(50, 150, DOMAIN, 200, MIN_BODY)
 	expect(geo.top).toBeCloseTo(0, 6)
 	expect(geo.height).toBeCloseTo(200, 6)
 })
 
-test('candleGeometry: single-value hour keeps a minimum visible body', () => {
-	const geo = candleGeometry(bucket(100, 100), DOMAIN, 200)
+test('segmentGeometry: single-value segment keeps the minimum body (a dot)', () => {
+	const geo = segmentGeometry(100, 100, DOMAIN, 200, MIN_BODY)
 	expect(geo.height).toBe(MIN_BODY)
 	expect(geo.top + geo.height).toBeLessThanOrEqual(200)
 	expect(geo.top).toBeGreaterThanOrEqual(0)
 })
 
-test('candleGeometry: single value at the top of the domain stays on the plot', () => {
-	// max === domain.hi forces yTop to 0; MIN_BODY must not push top negative.
-	const geo = candleGeometry(bucket(150, 150), DOMAIN, 200)
+test('segmentGeometry: single value at the top of the domain stays on the plot', () => {
+	// max === domain.hi forces yTop to 0; minBody must not push top negative.
+	const geo = segmentGeometry(150, 150, DOMAIN, 200, MIN_BODY)
 	expect(geo.top).toBe(0)
 	expect(geo.height).toBe(MIN_BODY)
 	expect(geo.top + geo.height).toBeLessThanOrEqual(200)
 })
 
-test('candleGeometry: body never escapes the plot', () => {
-	for (const b of [
-		bucket(50, 60),
-		bucket(140, 150),
-		bucket(95, 105),
-		bucket(150, 150),
-		bucket(49, 49),
-	]) {
-		const geo = candleGeometry(b, DOMAIN, 200)
+test('segmentGeometry: body never escapes the plot', () => {
+	const cases: Array<[number, number]> = [
+		[50, 60],
+		[140, 150],
+		[95, 105],
+		[150, 150],
+		[49, 49],
+	]
+	for (const [min, max] of cases) {
+		const geo = segmentGeometry(min, max, DOMAIN, 200, MIN_BODY)
 		expect(geo.top).toBeGreaterThanOrEqual(0)
 		expect(geo.top + geo.height).toBeLessThanOrEqual(200 + 0.001)
 		expect(geo.height).toBeGreaterThanOrEqual(MIN_BODY)

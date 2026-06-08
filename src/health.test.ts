@@ -1,7 +1,8 @@
 import { expect, test } from 'bun:test'
-import { HOUR_MS } from './config'
+import { HOUR_MS, SEGMENT_GAP_BPM } from './config'
 import {
 	bucketSamples,
+	clusterSegments,
 	computeDomain,
 	dayStats,
 	generateSampleDay,
@@ -36,13 +37,47 @@ test('bucketSamples: folds readings into the right hour with min/max/avg', () =>
 		DAY_START,
 	)
 	const nine = buckets[9]!
-	expect(nine).toEqual({ hour: 9, min: 70, max: 90, avg: 80, count: 3 })
+	expect(nine).toEqual({
+		hour: 9,
+		min: 70,
+		max: 90,
+		avg: 80,
+		count: 3,
+		segments: [{ min: 70, max: 90 }],
+	})
 })
 
-test('bucketSamples: empty hours have count 0', () => {
+test('bucketSamples: empty hours have count 0 and no segments', () => {
 	const buckets = bucketSamples([sample(9, 0, 70)], DAY_START)
-	expect(buckets[0]).toEqual({ hour: 0, min: 0, max: 0, avg: 0, count: 0 })
+	expect(buckets[0]).toEqual({
+		hour: 0,
+		min: 0,
+		max: 0,
+		avg: 0,
+		count: 0,
+		segments: [],
+	})
 	expect(buckets[10]!.count).toBe(0)
+})
+
+test('bucketSamples: an in-hour outlier splits into a detached segment', () => {
+	// 60/70/80 cluster + a lone 130 -> two segments, not one 60-130 bar.
+	const buckets = bucketSamples(
+		[
+			sample(9, 5, 60),
+			sample(9, 15, 80),
+			sample(9, 25, 130),
+			sample(9, 35, 70),
+		],
+		DAY_START,
+	)
+	const nine = buckets[9]!
+	expect(nine.min).toBe(60)
+	expect(nine.max).toBe(130)
+	expect(nine.segments).toEqual([
+		{ min: 60, max: 80 },
+		{ min: 130, max: 130 },
+	])
 })
 
 test('bucketSamples: drops samples outside the day window', () => {
@@ -62,7 +97,41 @@ test('bucketSamples: ignores non-finite values', () => {
 		[sample(5, 0, Number.NaN), sample(5, 1, 60)],
 		DAY_START,
 	)
-	expect(buckets[5]).toEqual({ hour: 5, min: 60, max: 60, avg: 60, count: 1 })
+	expect(buckets[5]).toEqual({
+		hour: 5,
+		min: 60,
+		max: 60,
+		avg: 60,
+		count: 1,
+		segments: [{ min: 60, max: 60 }],
+	})
+})
+
+// clusterSegments
+
+test('clusterSegments: contiguous readings stay one segment', () => {
+	expect(clusterSegments([60, 65, 70, 80], SEGMENT_GAP_BPM)).toEqual([
+		{ min: 60, max: 80 },
+	])
+})
+
+test('clusterSegments: a gap larger than the threshold splits, order-independent', () => {
+	expect(clusterSegments([80, 60, 130, 70], SEGMENT_GAP_BPM)).toEqual([
+		{ min: 60, max: 80 },
+		{ min: 130, max: 130 },
+	])
+})
+
+test('clusterSegments: multiple gaps yield multiple segments', () => {
+	expect(clusterSegments([50, 52, 90, 92, 150], 25)).toEqual([
+		{ min: 50, max: 52 },
+		{ min: 90, max: 92 },
+		{ min: 150, max: 150 },
+	])
+})
+
+test('clusterSegments: empty input yields no segments', () => {
+	expect(clusterSegments([], SEGMENT_GAP_BPM)).toEqual([])
 })
 
 // dayStats

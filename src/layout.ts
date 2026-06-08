@@ -1,5 +1,5 @@
-import { DAY_HOURS, MIN_BODY } from './config'
-import type { Domain, HourBucket } from './health'
+import { DAY_HOURS } from './config'
+import type { Domain } from './health'
 
 // How a widget family maps to a rendering mode:
 // - system: full chart with optional header + hour axis (small..extraLarge).
@@ -14,8 +14,8 @@ export type ChartLayout = {
 	hgap: number
 	plotWidth: number
 	plotHeight: number
+	slot: number
 	barWidth: number
-	gap: number
 	yLabelWidth: number
 	showHeader: boolean
 	showAxis: boolean
@@ -28,6 +28,12 @@ const AXIS_H = 14
 const AXIS_GAP = 2
 const Y_LABEL_W = 22
 const HGAP = 4
+
+// Each hour gets an equal-width slot; the capsule fills this fraction of it,
+// the rest is breathing room. Capped so wide widgets stay thin, not fat.
+const BAR_FRACTION = 0.5
+const BAR_MIN = 1.5
+const BAR_MAX = 7
 
 export function classifyFamily(family: WidgetFamily): ChartKind {
 	if (family === 'accessoryInline') return 'inline'
@@ -47,8 +53,9 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 
 	const showHeader = kind === 'system' && innerH >= 116
 	const showAxis = kind === 'system' && innerH >= 88
-	// The y-axis labels need horizontal room, so only on wider system widgets.
-	const showYAxis = kind === 'system' && innerW >= 200
+	// Show the y-axis on every system family, including small; only skip it on a
+	// degenerately narrow box where the label strip would crowd out the bars.
+	const showYAxis = kind === 'system' && innerW >= 110
 
 	const headerH = showHeader ? HEADER_H : 0
 	const axisH = showAxis ? AXIS_H : 0
@@ -63,11 +70,10 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 	const plotHeight = Math.max(1, innerH - headerH - topGap - axisH - axisGap)
 	const plotWidth = Math.max(1, innerW - yLabelWidth - hgap)
 
-	const gap = plotWidth >= 240 ? 3 : plotWidth >= 140 ? 2 : 1
-	const barWidth = Math.max(
-		0.5,
-		(plotWidth - gap * (DAY_HOURS - 1)) / DAY_HOURS,
-	)
+	// Equal-width slot per hour; the capsule is a thin, capped fraction of it,
+	// centered, so bars never look fat on wide widgets.
+	const slot = plotWidth / DAY_HOURS
+	const barWidth = Math.max(BAR_MIN, Math.min(slot * BAR_FRACTION, BAR_MAX))
 
 	return {
 		padding,
@@ -76,8 +82,8 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 		hgap,
 		plotWidth,
 		plotHeight,
+		slot,
 		barWidth,
-		gap,
 		yLabelWidth,
 		showHeader,
 		showAxis,
@@ -107,16 +113,18 @@ export function valueToY(
 	return plotHeight * (1 - t)
 }
 
-// Candle body for one hour: top offset and height, clamped to the plot and to
-// a minimum thickness so single-reading hours stay visible.
-export function candleGeometry(
-	bucket: HourBucket,
+// One segment's body: top offset and height within the plot, clamped to the
+// plot and to `minBody` so a single-reading band stays visible (as a dot).
+export function segmentGeometry(
+	min: number,
+	max: number,
 	domain: Domain,
 	plotHeight: number,
+	minBody: number,
 ): { top: number; height: number } {
-	const yTop = valueToY(bucket.max, domain, plotHeight)
-	const yBottom = valueToY(bucket.min, domain, plotHeight)
-	const height = Math.min(plotHeight, Math.max(MIN_BODY, yBottom - yTop))
+	const yTop = valueToY(max, domain, plotHeight)
+	const yBottom = valueToY(min, domain, plotHeight)
+	const height = Math.min(plotHeight, Math.max(minBody, yBottom - yTop))
 	const top = Math.max(0, Math.min(yTop, plotHeight - height))
 	return { top, height }
 }
