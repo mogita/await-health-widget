@@ -23,3 +23,25 @@ export function formatRange(min?: number, max?: number): string {
 export function hourTickLabels(): string[] {
 	return ['0', '6', '12', '18', '24']
 }
+
+const MONTHS = [
+	'Jan',
+	'Feb',
+	'Mar',
+	'Apr',
+	'May',
+	'Jun',
+	'Jul',
+	'Aug',
+	'Sep',
+	'Oct',
+	'Nov',
+	'Dec',
+]
+
+// Label for the day being viewed: Today / Yesterday / "Jun 7".
+export function formatDayLabel(day: Date, offset: number): string {
+	if (offset <= 0) return 'Today'
+	if (offset === 1) return 'Yesterday'
+	return `${MONTHS[day.getMonth()]} ${day.getDate()}`
+}

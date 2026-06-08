@@ -20,6 +20,7 @@ export type ChartLayout = {
 	showHeader: boolean
 	showAxis: boolean
 	showYAxis: boolean
+	showFooter: boolean
 }
 
 // Chrome sizes, in points.
@@ -28,6 +29,7 @@ const AXIS_H = 14
 const AXIS_GAP = 2
 const Y_LABEL_W = 22
 const HGAP = 4
+const FOOTER_H = 18
 
 // Each hour gets an equal-width slot; the capsule fills this fraction of it,
 // the rest is breathing room. Capped so wide widgets stay thin, not fat.
@@ -53,21 +55,29 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 
 	const showHeader = kind === 'system' && innerH >= 116
 	const showAxis = kind === 'system' && innerH >= 88
+	// The prev/next footer is the paging control; show it whenever a system
+	// widget has any reasonable height.
+	const showFooter = kind === 'system' && innerH >= 96
 	// Show the y-axis on every system family, including small; only skip it on a
 	// degenerately narrow box where the label strip would crowd out the bars.
 	const showYAxis = kind === 'system' && innerW >= 110
 
 	const headerH = showHeader ? HEADER_H : 0
 	const axisH = showAxis ? AXIS_H : 0
+	const footerH = showFooter ? FOOTER_H : 0
 	const topGap = showHeader ? spacing : 0
+	const footerGap = showFooter ? spacing : 0
 	const axisGap = showAxis ? AXIS_GAP : 0
 	const hgap = showYAxis ? HGAP : 0
 	const yLabelWidth = showYAxis ? Y_LABEL_W : 0
 
 	// Subtract every gap and reserved strip so the plot fits exactly. Vertical:
-	// header + topGap + chart + axisGap + axis = innerH. Horizontal: the y-label
-	// column and its gap sit to the right of the plot.
-	const plotHeight = Math.max(1, innerH - headerH - topGap - axisH - axisGap)
+	// header + topGap + chart + axisGap + axis + footerGap + footer = innerH.
+	// Horizontal: the y-label column and its gap sit to the right of the plot.
+	const plotHeight = Math.max(
+		1,
+		innerH - headerH - topGap - axisH - axisGap - footerGap - footerH,
+	)
 	const plotWidth = Math.max(1, innerW - yLabelWidth - hgap)
 
 	// Equal-width slot per hour; the capsule is a thin, capped fraction of it,
@@ -88,6 +98,7 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 		showHeader,
 		showAxis,
 		showYAxis,
+		showFooter,
 	}
 }
 

@@ -1,5 +1,10 @@
 import { expect, test } from 'bun:test'
-import { formatBpm, formatRange, hourTickLabels } from './format'
+import {
+	formatBpm,
+	formatDayLabel,
+	formatRange,
+	hourTickLabels,
+} from './format'
 
 // formatBpm
 
@@ -29,4 +34,13 @@ test('formatRange: missing bound renders --', () => {
 
 test('hourTickLabels: five evenly spaced 24-hour ticks', () => {
 	expect(hourTickLabels()).toEqual(['0', '6', '12', '18', '24'])
+})
+
+// formatDayLabel
+
+test('formatDayLabel: today, yesterday, then an explicit date', () => {
+	const day = new Date(2026, 5, 7) // Jun 7
+	expect(formatDayLabel(day, 0)).toBe('Today')
+	expect(formatDayLabel(day, 1)).toBe('Yesterday')
+	expect(formatDayLabel(day, 2)).toBe('Jun 7')
 })

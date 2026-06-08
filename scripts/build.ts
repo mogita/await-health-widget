@@ -7,6 +7,7 @@ const FILES = [
 	'src/panels.ts',
 	'src/config.ts',
 	'src/format.ts',
+	'src/nav.ts',
 	'src/health.ts',
 	'src/layout.ts',
 	'src/widget.tsx',

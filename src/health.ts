@@ -8,6 +8,7 @@ import {
 	MIN_DOMAIN_SPAN,
 	SEGMENT_GAP_BPM,
 } from './config'
+import { formatDayLabel } from './format'
 
 // A contiguous BPM range within an hour. An hour with a value gap (e.g. a
 // resting band plus a lone spike) yields more than one segment so the spike
@@ -46,6 +47,28 @@ export type Entry = {
 	hasData: boolean
 	restingHr?: number
 	latestHr?: number
+	dayOffset: number
+	dayLabel: string
+}
+
+// The local-day window for an offset back from `now`: start of that day, the
+// query end (now for today, else that day's end), and whether it is today.
+// Uses calendar arithmetic so DST-short/long days resolve correctly.
+export function dayWindow(
+	now: Date,
+	offset: number,
+): { dayStart: Date; dayStartMs: number; endMs: number; isToday: boolean } {
+	const dayStart = new Date(now.getTime())
+	dayStart.setHours(0, 0, 0, 0)
+	dayStart.setDate(dayStart.getDate() - offset)
+	const dayStartMs = dayStart.getTime()
+
+	const nextMidnight = new Date(dayStartMs)
+	nextMidnight.setHours(0, 0, 0, 0)
+	nextMidnight.setDate(nextMidnight.getDate() + 1)
+
+	const endMs = Math.min(now.getTime(), nextMidnight.getTime())
+	return { dayStart, dayStartMs, endMs, isToday: offset === 0 }
 }
 
 // Local midnight of `now`, in epoch ms.
@@ -189,12 +212,12 @@ export function latestFromSamples(
 // daytime band, and one afternoon exertion spike. Only for `useSampleData`.
 export function generateSampleDay(
 	dayStartMs: number,
-	nowMs: number,
+	endMs: number,
 ): AwaitHealthQuantitySample[] {
 	const samples: AwaitHealthQuantitySample[] = []
 	const lastHour = Math.min(
 		DAY_HOURS - 1,
-		Math.floor((nowMs - dayStartMs) / HOUR_MS),
+		Math.floor((endMs - dayStartMs) / HOUR_MS),
 	)
 	for (let hour = 0; hour <= lastHour; hour++) {
 		const base = sampleBaseline(hour)
@@ -204,7 +227,7 @@ export function generateSampleDay(
 			const value = Math.max(42, Math.round(base + jitter))
 			const offset = hour * HOUR_MS + Math.floor((i / readings) * HOUR_MS)
 			const at = dayStartMs + offset
-			if (at > nowMs) break
+			if (at > endMs) break
 			samples.push({
 				value,
 				startDate: new Date(at),
@@ -215,7 +238,7 @@ export function generateSampleDay(
 		// detached segment (the resting band plus a separate dot).
 		if (hour === 8) {
 			const at = dayStartMs + hour * HOUR_MS + Math.floor(HOUR_MS / 2)
-			if (at <= nowMs) {
+			if (at <= endMs) {
 				samples.push({
 					value: 134,
 					startDate: new Date(at),
@@ -236,28 +259,35 @@ function sampleBaseline(hour: number): number {
 	return 64 // wind down
 }
 
-// The only HealthKit-touching function. Pulls the day's heart-rate series (or
-// a synthetic one), buckets it, and reads resting/latest from the snapshot.
-export async function buildEntry(now: Date, useMock: boolean): Promise<Entry> {
-	const dayStartMs = startOfDayMs(now)
-	const nowMs = now.getTime()
+// The only HealthKit-touching function. Pulls the chosen day's heart-rate
+// series (or a synthetic one), buckets it, and resolves resting/latest. Today
+// also reads the live snapshot; past days come entirely from the range query.
+export async function buildEntry(
+	now: Date,
+	useMock: boolean,
+	dayOffset: number,
+): Promise<Entry> {
+	const { dayStart, dayStartMs, endMs, isToday } = dayWindow(now, dayOffset)
 
 	let samples: AwaitHealthQuantitySample[]
 	let restingHr: number | undefined
 	let latestHr: number | undefined
 
 	if (useMock) {
-		samples = generateSampleDay(dayStartMs, nowMs)
+		samples = generateSampleDay(dayStartMs, endMs)
 		restingHr = 58
 	} else {
-		// Independent calls: fetch the day's series and the snapshot in parallel.
-		const [range, snapshot] = await Promise.all([
-			AwaitHealth.get({ start: new Date(dayStartMs), end: now }),
-			AwaitHealth.get(),
-		])
+		const range = await AwaitHealth.get({
+			start: dayStart,
+			end: new Date(endMs),
+		})
 		samples = range?.heartRate ?? []
-		restingHr = snapshot?.restingHeartRate
-		latestHr = snapshot?.heartRate
+		restingHr = latestFromSamples(range?.restingHeartRate ?? [])
+		if (isToday) {
+			const snapshot = await AwaitHealth.get()
+			latestHr = snapshot?.heartRate
+			if (restingHr === undefined) restingHr = snapshot?.restingHeartRate
+		}
 	}
 
 	const buckets = bucketSamples(samples, dayStartMs)
@@ -268,5 +298,7 @@ export async function buildEntry(now: Date, useMock: boolean): Promise<Entry> {
 		hasData: hasData(buckets),
 		restingHr,
 		latestHr,
+		dayOffset,
+		dayLabel: formatDayLabel(dayStart, dayOffset),
 	}
 }

@@ -1,4 +1,5 @@
 import {
+	Button,
 	Capsule,
 	Color,
 	HStack,
@@ -37,16 +38,19 @@ import {
 } from './layout'
 import { accentColor, colorByZone, showRestingLine } from './panels'
 
-export function widget(entry: WidgetEntry<Entry>): NativeView {
+export function widget(
+	entry: WidgetEntry<Entry> & {
+		prevIntent: IntentInfo
+		nextIntent: IntentInfo
+	},
+): NativeView {
 	const kind = classifyFamily(entry.family)
 	const stats = dayStats(entry.buckets)
 
 	if (kind === 'inline') return inlineView(entry, stats)
-	if (!entry.hasData) return emptyView(kind)
 
 	const layout = computeLayout(entry.size, kind)
-	const domain = computeDomain(entry.buckets)
-	const chart = chartView(entry, domain, layout)
+	const body = entry.hasData ? dayChart(entry, layout) : emptyChart(kind)
 
 	if (kind === 'compact') {
 		return (
@@ -55,7 +59,7 @@ export function widget(entry: WidgetEntry<Entry>): NativeView {
 					padding={layout.padding}
 					frame={{ maxWidth: 'max', maxHeight: 'max', alignment: 'topLeading' }}
 				>
-					{chart}
+					{body}
 				</VStack>
 			</ZStack>
 		)
@@ -71,15 +75,28 @@ export function widget(entry: WidgetEntry<Entry>): NativeView {
 				frame={{ maxWidth: 'max', maxHeight: 'max', alignment: 'topLeading' }}
 			>
 				{layout.showHeader ? headerView(entry) : undefined}
-				<HStack spacing={layout.hgap} alignment='top'>
-					<VStack spacing={layout.axisGap} alignment='leading'>
-						{chart}
-						{layout.showAxis ? axisView(layout) : undefined}
-					</VStack>
-					{layout.showYAxis ? yAxisView(domain, layout) : undefined}
-				</HStack>
+				{body}
+				{layout.showFooter
+					? footerView(entry, entry.prevIntent, entry.nextIntent)
+					: undefined}
 			</VStack>
 		</ZStack>
+	)
+}
+
+// The plot area (chart + y-axis labels + x-axis), sized to leave room for the
+// header and footer. Empty days show a placeholder of the same height so the
+// footer stays pinned to the bottom and paging still works.
+function dayChart(entry: Entry, layout: ChartLayout): NativeView {
+	const domain = computeDomain(entry.buckets)
+	return (
+		<HStack spacing={layout.hgap} alignment='top'>
+			<VStack spacing={layout.axisGap} alignment='leading'>
+				{chartView(entry, domain, layout)}
+				{layout.showAxis ? axisView(layout) : undefined}
+			</VStack>
+			{layout.showYAxis ? yAxisView(domain, layout) : undefined}
+		</HStack>
 	)
 }
 
@@ -314,39 +331,60 @@ function inlineView(entry: Entry, stats: DayStats): NativeView {
 	return <Text value={`HR ${latest} bpm  (${range})`} />
 }
 
-function emptyView(kind: ChartKind): NativeView {
-	if (kind === 'compact') {
-		return (
-			<ZStack alignment='center' maxSides>
-				<Text
-					value='No HR'
-					fontSize={11}
-					foreground='secondary'
-					fontWeight={600}
-				/>
-			</ZStack>
-		)
-	}
-
+// Placeholder for a day with no readings. Fills the plot area (maxHeight) so
+// the header and footer stay put and the user can still page to another day.
+function emptyChart(kind: ChartKind): NativeView {
 	return (
-		<ZStack alignment='center' maxSides>
-			<Color value={BACKGROUND} />
-			<VStack spacing={6} alignment='center' padding={16}>
-				<Icon value='heart.text.square' fontSize={26} foreground='secondary' />
-				<Text
-					value='No heart rate yet today'
-					fontSize={12}
-					foreground='primary'
-					fontWeight={600}
-				/>
-				<Text
-					value='Readings appear as your watch records them'
-					fontSize={10}
+		<ZStack
+			alignment='center'
+			frame={{ maxWidth: 'max', maxHeight: 'max', alignment: 'center' }}
+		>
+			<VStack spacing={4} alignment='center'>
+				<Icon
+					value='heart.text.square'
+					fontSize={kind === 'compact' ? 16 : 22}
 					foreground='secondary'
-					lineLimit={2}
-					textAlignment='center'
 				/>
+				{kind === 'compact' ? undefined : (
+					<Text
+						value='No heart rate this day'
+						fontSize={11}
+						foreground='secondary'
+						fontWeight={600}
+					/>
+				)}
 			</VStack>
 		</ZStack>
+	)
+}
+
+// Bottom paging control: prev (older) on the left, the day label centered, and
+// next (newer) on the right, hidden once today is reached. Small, plain
+// buttons like the agent-usage refresh button.
+function footerView(
+	entry: Entry,
+	prevIntent: IntentInfo,
+	nextIntent: IntentInfo,
+): NativeView {
+	return (
+		<HStack maxWidth spacing={6}>
+			<Button intent={prevIntent} buttonStyle='plain'>
+				<Icon value='chevron.left' fontSize={11} foreground='secondary' />
+			</Button>
+			<Spacer />
+			<Text
+				value={entry.dayLabel}
+				fontSize={10}
+				foreground='secondary'
+				fontWeight={600}
+				fontDesign='rounded'
+			/>
+			<Spacer />
+			{entry.dayOffset > 0 ? (
+				<Button intent={nextIntent} buttonStyle='plain'>
+					<Icon value='chevron.right' fontSize={11} foreground='secondary' />
+				</Button>
+			) : undefined}
+		</HStack>
 	)
 }

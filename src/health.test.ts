@@ -5,6 +5,7 @@ import {
 	clusterSegments,
 	computeDomain,
 	dayStats,
+	dayWindow,
 	generateSampleDay,
 	type HourBucket,
 	latestFromSamples,
@@ -23,6 +24,24 @@ function sample(hour: number, minute: number, value: number) {
 test('startOfDayMs: returns local midnight of the given date', () => {
 	const noon = new Date(2026, 5, 8, 12, 34, 56, 789)
 	expect(startOfDayMs(noon)).toBe(DAY_START)
+})
+
+// dayWindow
+
+test('dayWindow: today spans local midnight to now', () => {
+	const now = new Date(2026, 5, 8, 14, 30, 0)
+	const w = dayWindow(now, 0)
+	expect(w.isToday).toBe(true)
+	expect(w.dayStartMs).toBe(new Date(2026, 5, 8, 0, 0, 0, 0).getTime())
+	expect(w.endMs).toBe(now.getTime())
+})
+
+test('dayWindow: a past day spans its full midnight to next midnight', () => {
+	const now = new Date(2026, 5, 8, 14, 30, 0)
+	const w = dayWindow(now, 2) // Jun 6
+	expect(w.isToday).toBe(false)
+	expect(w.dayStart.getTime()).toBe(new Date(2026, 5, 6, 0, 0, 0, 0).getTime())
+	expect(w.endMs).toBe(new Date(2026, 5, 7, 0, 0, 0, 0).getTime())
 })
 
 // bucketSamples
