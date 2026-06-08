@@ -84,13 +84,18 @@ export function widget(
 	)
 }
 
-// The plot area (chart + y-axis labels + x-axis), sized to leave room for the
-// header and footer. Empty days show a placeholder of the same height so the
-// footer stays pinned to the bottom and paging still works.
+// The plot area (chart + y-axis labels + x-axis). Fills the leftover height
+// (maxHeight) with the chart pinned to the top, so any reserved-constant slack
+// is absorbed here and the footer stays flush to the bottom — matching the
+// empty-day placeholder so both states pin the footer identically.
 function dayChart(entry: Entry, layout: ChartLayout): NativeView {
 	const domain = computeDomain(entry.buckets)
 	return (
-		<HStack spacing={layout.hgap} alignment='top'>
+		<HStack
+			spacing={layout.hgap}
+			alignment='top'
+			frame={{ maxHeight: 'max', alignment: 'topLeading' }}
+		>
 			<VStack spacing={layout.axisGap} alignment='leading'>
 				{chartView(entry, domain, layout)}
 				{layout.showAxis ? axisView(layout) : undefined}
