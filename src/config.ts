@@ -19,6 +19,7 @@ export const MIN_BODY = 3
 // families only; lock-screen families stay clear). AXIS_COLOR is a faint gray.
 export const BACKGROUND = 'background'
 export const AXIS_COLOR: Color = ['gray', 0.25]
+export const GRID_COLOR: Color = ['gray', 0.15]
 
 // Heart-rate zones, ordered low to high. `zoneColor` returns the first zone
 // whose `max` the value is strictly below.

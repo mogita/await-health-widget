@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { MIN_BODY } from './config'
 import type { Domain, HourBucket } from './health'
 import {
+	bpmTicks,
 	candleGeometry,
 	classifyFamily,
 	computeLayout,
@@ -64,6 +65,52 @@ test('computeLayout: short system widget drops chrome to keep the plot', () => {
 	const layout = computeLayout({ width: 160, height: 70 }, 'system')
 	expect(layout.showHeader).toBe(false)
 	expect(layout.plotHeight).toBeGreaterThan(0)
+})
+
+test('computeLayout: wide system widget reserves the y-axis label strip', () => {
+	const layout = computeLayout({ width: 360, height: 340 }, 'system')
+	expect(layout.showYAxis).toBe(true)
+	expect(layout.yLabelWidth).toBeGreaterThan(0)
+	// Plot is narrower than the inner width by the label strip + its gap.
+	expect(layout.plotWidth).toBeLessThan(360 - 24)
+})
+
+test('computeLayout: narrow + compact widgets omit the y-axis', () => {
+	expect(computeLayout({ width: 160, height: 160 }, 'system').showYAxis).toBe(
+		false,
+	)
+	expect(computeLayout({ width: 160, height: 160 }, 'compact').showYAxis).toBe(
+		false,
+	)
+})
+
+// bpmTicks
+
+test('bpmTicks: round 25-step stops inside a ~100bpm domain', () => {
+	expect(bpmTicks({ lo: 41, hi: 149 })).toEqual([50, 75, 100, 125])
+})
+
+test('bpmTicks: 10-step stops for a tight domain', () => {
+	expect(bpmTicks({ lo: 60, hi: 90 })).toEqual([60, 70, 80, 90])
+})
+
+test('bpmTicks: 50-step stops for a wide domain', () => {
+	expect(bpmTicks({ lo: 50, hi: 250 })).toEqual([50, 100, 150, 200, 250])
+})
+
+test('bpmTicks: every stop lies within the domain', () => {
+	for (const d of [
+		{ lo: 41, hi: 149 },
+		{ lo: 55, hi: 72 },
+		{ lo: 48, hi: 210 },
+	]) {
+		const ticks = bpmTicks(d)
+		expect(ticks.length).toBeGreaterThanOrEqual(1)
+		for (const t of ticks) {
+			expect(t).toBeGreaterThanOrEqual(d.lo)
+			expect(t).toBeLessThanOrEqual(d.hi)
+		}
+	}
 })
 
 // valueToY

@@ -10,13 +10,24 @@ export type ChartKind = 'system' | 'compact' | 'inline'
 export type ChartLayout = {
 	padding: number
 	spacing: number
+	axisGap: number
+	hgap: number
 	plotWidth: number
 	plotHeight: number
 	barWidth: number
 	gap: number
+	yLabelWidth: number
 	showHeader: boolean
 	showAxis: boolean
+	showYAxis: boolean
 }
+
+// Chrome sizes, in points.
+const HEADER_H = 22
+const AXIS_H = 14
+const AXIS_GAP = 2
+const Y_LABEL_W = 22
+const HGAP = 4
 
 export function classifyFamily(family: WidgetFamily): ChartKind {
 	if (family === 'accessoryInline') return 'inline'
@@ -36,16 +47,23 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 
 	const showHeader = kind === 'system' && innerH >= 116
 	const showAxis = kind === 'system' && innerH >= 88
-	const headerH = showHeader ? 22 : 0
-	const axisH = showAxis ? 14 : 0
+	// The y-axis labels need horizontal room, so only on wider system widgets.
+	const showYAxis = kind === 'system' && innerW >= 200
 
-	// The column holds header + chart + axis stacked with `spacing` between each
-	// visible pair; subtract those gaps so the plot fits exactly, not overflows.
-	const gaps = (showHeader ? 1 : 0) + (showAxis ? 1 : 0)
-	const plotWidth = innerW
-	const plotHeight = Math.max(1, innerH - headerH - axisH - spacing * gaps)
+	const headerH = showHeader ? HEADER_H : 0
+	const axisH = showAxis ? AXIS_H : 0
+	const topGap = showHeader ? spacing : 0
+	const axisGap = showAxis ? AXIS_GAP : 0
+	const hgap = showYAxis ? HGAP : 0
+	const yLabelWidth = showYAxis ? Y_LABEL_W : 0
 
-	const gap = innerW >= 240 ? 3 : innerW >= 140 ? 2 : 1
+	// Subtract every gap and reserved strip so the plot fits exactly. Vertical:
+	// header + topGap + chart + axisGap + axis = innerH. Horizontal: the y-label
+	// column and its gap sit to the right of the plot.
+	const plotHeight = Math.max(1, innerH - headerH - topGap - axisH - axisGap)
+	const plotWidth = Math.max(1, innerW - yLabelWidth - hgap)
+
+	const gap = plotWidth >= 240 ? 3 : plotWidth >= 140 ? 2 : 1
 	const barWidth = Math.max(
 		0.5,
 		(plotWidth - gap * (DAY_HOURS - 1)) / DAY_HOURS,
@@ -54,13 +72,27 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 	return {
 		padding,
 		spacing,
+		axisGap,
+		hgap,
 		plotWidth,
 		plotHeight,
 		barWidth,
 		gap,
+		yLabelWidth,
 		showHeader,
 		showAxis,
+		showYAxis,
 	}
+}
+
+// 3-5 round BPM stops within the domain for the y-axis labels and gridlines.
+export function bpmTicks(domain: Domain): number[] {
+	const span = domain.hi - domain.lo
+	const step = span <= 30 ? 10 : span <= 60 ? 20 : span <= 120 ? 25 : 50
+	const start = Math.ceil(domain.lo / step) * step
+	const ticks: number[] = []
+	for (let v = start; v <= domain.hi; v += step) ticks.push(v)
+	return ticks
 }
 
 // Map a BPM value to a y-offset from the top of the plot (0 = top = high BPM).

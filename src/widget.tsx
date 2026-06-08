@@ -9,7 +9,7 @@ import {
 	VStack,
 	ZStack,
 } from 'await'
-import { AXIS_COLOR, BACKGROUND, zoneColor } from './config'
+import { AXIS_COLOR, BACKGROUND, GRID_COLOR, zoneColor } from './config'
 import { formatBpm, formatRange, hourTickLabels } from './format'
 import {
 	computeDomain,
@@ -20,6 +20,7 @@ import {
 	type HourBucket,
 } from './health'
 import {
+	bpmTicks,
 	type ChartKind,
 	type ChartLayout,
 	candleGeometry,
@@ -63,8 +64,13 @@ export function widget(entry: WidgetEntry<Entry>): NativeView {
 				frame={{ maxWidth: 'max', maxHeight: 'max', alignment: 'topLeading' }}
 			>
 				{layout.showHeader ? headerView(entry) : undefined}
-				{chart}
-				{layout.showAxis ? axisView() : undefined}
+				<HStack spacing={layout.hgap} alignment='top'>
+					<VStack spacing={layout.axisGap} alignment='leading'>
+						{chart}
+						{layout.showAxis ? axisView(layout) : undefined}
+					</VStack>
+					{layout.showYAxis ? yAxisView(domain, layout) : undefined}
+				</HStack>
 			</VStack>
 		</ZStack>
 	)
@@ -83,12 +89,26 @@ function chartView(
 	const h = layout.plotHeight
 	return (
 		<ZStack alignment='topLeading' width={layout.plotWidth} height={h}>
-			<VStack spacing={0} width={layout.plotWidth} height={h}>
-				<Rectangle fill={['gray', 0]} width={layout.plotWidth} height={h - 1} />
-				<Rectangle fill={AXIS_COLOR} width={layout.plotWidth} height={1} />
-			</VStack>
+			{hLine('baseline', h - 1, layout.plotWidth, h, AXIS_COLOR)}
+			{layout.showYAxis
+				? bpmTicks(domain).map((tick) =>
+						hLine(
+							`g${tick}`,
+							valueToY(tick, domain, h),
+							layout.plotWidth,
+							h,
+							GRID_COLOR,
+						),
+					)
+				: undefined}
 			{showRestingLine && entry.restingHr !== undefined
-				? restingLine(entry.restingHr, domain, layout)
+				? hLine(
+						'resting',
+						valueToY(entry.restingHr, domain, h),
+						layout.plotWidth,
+						h,
+						['gray', 0.45],
+					)
 				: undefined}
 			<HStack
 				spacing={layout.gap}
@@ -101,23 +121,56 @@ function chartView(
 	)
 }
 
-function restingLine(
-	resting: number,
-	domain: Domain,
-	layout: ChartLayout,
+// A 1px horizontal line at vertical position `y` within a w x h box, placed by
+// fixed-height transparent blocks (no offset, no Spacer).
+function hLine(
+	id: string,
+	y: number,
+	w: number,
+	h: number,
+	color: Color,
 ): NativeView {
-	const h = layout.plotHeight
-	// Clamp so the line (1px) plus the gap above it never exceeds the plot.
-	const y = Math.min(valueToY(resting, domain, h), h - 1)
+	const top = Math.max(0, Math.min(y, h - 1))
 	return (
-		<VStack spacing={0} width={layout.plotWidth} height={h}>
-			<Rectangle fill={['gray', 0]} width={layout.plotWidth} height={y} />
-			<Rectangle fill={['gray', 0.45]} width={layout.plotWidth} height={1} />
-			<Rectangle
-				fill={['gray', 0]}
-				width={layout.plotWidth}
-				height={h - y - 1}
+		<VStack id={id} spacing={0} width={w} height={h}>
+			<Rectangle fill={['gray', 0]} width={w} height={top} />
+			<Rectangle fill={color} width={w} height={1} />
+			<Rectangle fill={['gray', 0]} width={w} height={h - top - 1} />
+		</VStack>
+	)
+}
+
+// Right-side BPM labels, one per gridline tick, each positioned at its value.
+function yAxisView(domain: Domain, layout: ChartLayout): NativeView {
+	const h = layout.plotHeight
+	const w = layout.yLabelWidth
+	return (
+		<ZStack alignment='topLeading' width={w} height={h}>
+			{bpmTicks(domain).map((tick) =>
+				yLabel(tick, valueToY(tick, domain, h), w, h),
+			)}
+		</ZStack>
+	)
+}
+
+const Y_LABEL_H = 11
+
+function yLabel(value: number, y: number, w: number, h: number): NativeView {
+	// Center the label box on the gridline; clamp so it stays inside the plot.
+	// Three fixed heights summing to h (no Spacer) keep placement deterministic.
+	const top = Math.max(0, Math.min(y - Y_LABEL_H / 2, h - Y_LABEL_H))
+	return (
+		<VStack id={`y${value}`} spacing={0} width={w} height={h}>
+			<Rectangle fill={['gray', 0]} width={w} height={top} />
+			<Text
+				value={`${value}`}
+				fontSize={9}
+				foreground='secondary'
+				fontDesign='rounded'
+				monospacedDigit
+				height={Y_LABEL_H}
 			/>
+			<Rectangle fill={['gray', 0]} width={w} height={h - top - Y_LABEL_H} />
 		</VStack>
 	)
 }
@@ -192,10 +245,10 @@ function headerView(entry: Entry): NativeView {
 	)
 }
 
-function axisView(): NativeView {
+function axisView(layout: ChartLayout): NativeView {
 	const labels = hourTickLabels()
 	return (
-		<HStack maxWidth>
+		<HStack width={layout.plotWidth}>
 			{tickText(labels[0]!)}
 			<Spacer />
 			{tickText(labels[1]!)}
