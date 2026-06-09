@@ -67,6 +67,24 @@ export const THEMES: Record<string, Theme> = {
 			{ max: Number.POSITIVE_INFINITY, color: '6cc551' }, // elevated — leaf-green
 		],
 	},
+	// pink / pale-yellow / mint / sky-blue / lavender pastels, on a lavender base.
+	// A lively light theme. Since the base is a mid-light purple, the foreground
+	// avoids the purple family (it would blend in) and runs deep enough to read:
+	// candy-pink values, deep-teal labels/chrome, and a blue-to-rose zone ramp.
+	Marshmallow: {
+		background: 'e4c1f9', // lavender base
+		textPrimary: '000000',
+		textSecondary: '167d8a', // deep teal — labels, axis numbers, footer
+		axis: ['167d8a', 0.45], // soft teal baseline
+		grid: ['167d8a', 0.25], // faint teal gridlines
+		resting: '5cc4a8', // mint-teal line
+		heart: 'fcf6bd',
+		zones: [
+			{ max: 60, color: '2d7ac9' }, // resting / low — candy blue
+			{ max: 100, color: 'f25fa0' }, // normal — candy pink
+			{ max: Number.POSITIVE_INFINITY, color: 'd92f5e' }, // elevated — deep rose
+		],
+	},
 }
 
 export const DEFAULT_THEME = 'Blueprint'
