@@ -104,6 +104,24 @@ export const THEMES: Record<string, Theme> = {
 			{ max: Number.POSITIVE_INFINITY, color: 'ebf5ee' }, // elevated — off-white
 		],
 	},
+	// pale-lime / neon-green / mid-purple / dark-purple / coral. The EVA-01
+	// scheme: a deep-purple base with a glowing neon-green core. Pale-lime text,
+	// and zones that go subtle mid-purple (rest recedes into the body) to neon
+	// green (the common active range) to coral (elevated).
+	Shogoki: {
+		background: '523874', // deep purple base
+		textPrimary: 'c7fba5', // pale lime
+		textSecondary: ['c7fba5', 0.6],
+		axis: ['c7fba5', 0.28],
+		grid: ['c7fba5', 0.22],
+		resting: ['c7fba5', 0.4], // faint pale-lime line
+		heart: 'dc7d68', // coral
+		zones: [
+			{ max: 60, color: '916cad' }, // resting / low — mid-purple
+			{ max: 100, color: 'adf182' }, // normal — neon green
+			{ max: Number.POSITIVE_INFINITY, color: 'dc7d68' }, // elevated — coral
+		],
+	},
 }
 
 // The first declared theme, used as the fallback whenever a selected name is
