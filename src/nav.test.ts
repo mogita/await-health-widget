@@ -1,23 +1,38 @@
 import { expect, test } from 'bun:test'
-import { clampOffset } from './nav'
+import { clampDay, stepDays } from './nav'
 
-test('clampOffset: today and earlier clamp to 0', () => {
-	expect(clampOffset(0)).toBe(0)
-	expect(clampOffset(-5)).toBe(0)
+const JUN8 = new Date(2026, 5, 8, 0, 0, 0, 0).getTime()
+const JUN6 = new Date(2026, 5, 6, 0, 0, 0, 0).getTime()
+const JUN9 = new Date(2026, 5, 9, 0, 0, 0, 0).getTime()
+
+// stepDays
+
+test('stepDays: steps whole calendar days from midnight', () => {
+	expect(stepDays(JUN8, -2)).toBe(JUN6)
+	expect(stepDays(JUN8, 1)).toBe(JUN9)
 })
 
-test('clampOffset: non-finite values clamp to 0', () => {
-	expect(clampOffset(Number.NaN)).toBe(0)
-	expect(clampOffset(Number.POSITIVE_INFINITY)).toBe(0)
+test('stepDays: normalizes a mid-day epoch to midnight first', () => {
+	const midday = new Date(2026, 5, 8, 13, 45, 0).getTime()
+	expect(stepDays(midday, 0)).toBe(JUN8)
 })
 
-test('clampOffset: fractional offsets floor to whole days', () => {
-	expect(clampOffset(3.9)).toBe(3)
+// clampDay
+
+test('clampDay: a future day clamps to today', () => {
+	expect(clampDay(JUN9, JUN8)).toBe(JUN8)
 })
 
-test('clampOffset: caps runaway offsets', () => {
-	const capped = clampOffset(1_000_000)
-	expect(capped).toBeLessThan(1_000_000)
-	expect(Number.isFinite(capped)).toBe(true)
-	expect(capped).toBeGreaterThan(0)
+test('clampDay: a past day within range is kept (normalized to midnight)', () => {
+	expect(clampDay(new Date(2026, 5, 6, 9, 30, 0).getTime(), JUN8)).toBe(JUN6)
+})
+
+test('clampDay: a non-finite day falls back to today', () => {
+	expect(clampDay(Number.NaN, JUN8)).toBe(JUN8)
+})
+
+test('clampDay: an absurdly old day is floored, still in the past', () => {
+	const floored = clampDay(0, JUN8)
+	expect(floored).toBeLessThan(JUN8)
+	expect(Number.isFinite(floored)).toBe(true)
 })

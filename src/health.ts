@@ -51,24 +51,37 @@ export type Entry = {
 	dayLabel: string
 }
 
-// The local-day window for an offset back from `now`: start of that day, the
-// query end (now for today, else that day's end), and whether it is today.
+// The local-day window for the viewed day (a local-midnight epoch): start of
+// that day, the query end (now for today, else that day's end), whether it is
+// today, and the day count back from today (for the label and next button).
 // Uses calendar arithmetic so DST-short/long days resolve correctly.
 export function dayWindow(
 	now: Date,
-	offset: number,
-): { dayStart: Date; dayStartMs: number; endMs: number; isToday: boolean } {
-	const dayStart = new Date(now.getTime())
-	dayStart.setHours(0, 0, 0, 0)
-	dayStart.setDate(dayStart.getDate() - offset)
-	const dayStartMs = dayStart.getTime()
+	viewedDayMs: number,
+): {
+	dayStart: Date
+	dayStartMs: number
+	endMs: number
+	isToday: boolean
+	offset: number
+} {
+	const dayStartMs = startOfDayMs(new Date(viewedDayMs))
+	const dayStart = new Date(dayStartMs)
 
 	const nextMidnight = new Date(dayStartMs)
 	nextMidnight.setHours(0, 0, 0, 0)
 	nextMidnight.setDate(nextMidnight.getDate() + 1)
 
 	const endMs = Math.min(now.getTime(), nextMidnight.getTime())
-	return { dayStart, dayStartMs, endMs, isToday: offset === 0 }
+	const todayMs = startOfDayMs(now)
+	const offset = Math.max(0, Math.round((todayMs - dayStartMs) / 86_400_000))
+	return {
+		dayStart,
+		dayStartMs,
+		endMs,
+		isToday: dayStartMs === todayMs,
+		offset,
+	}
 }
 
 // Local midnight of `now`, in epoch ms.
@@ -265,9 +278,12 @@ function sampleBaseline(hour: number): number {
 export async function buildEntry(
 	now: Date,
 	useMock: boolean,
-	dayOffset: number,
+	viewedDayMs: number,
 ): Promise<Entry> {
-	const { dayStart, dayStartMs, endMs, isToday } = dayWindow(now, dayOffset)
+	const { dayStart, dayStartMs, endMs, isToday, offset } = dayWindow(
+		now,
+		viewedDayMs,
+	)
 
 	let samples: AwaitHealthQuantitySample[]
 	let restingHr: number | undefined
@@ -298,7 +314,7 @@ export async function buildEntry(
 		hasData: hasData(buckets),
 		restingHr,
 		latestHr,
-		dayOffset,
-		dayLabel: formatDayLabel(dayStart, dayOffset),
+		dayOffset: offset,
+		dayLabel: formatDayLabel(dayStart, offset),
 	}
 }

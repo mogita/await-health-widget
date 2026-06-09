@@ -1,27 +1,58 @@
-// Which day the widget is showing, as a day offset stored in AwaitStore.
-// 0 = today; larger = further back. Paged by the prev/next widget intents.
-const DAY_OFFSET_KEY = 'dayOffset'
+// Which day the widget is showing, stored in AwaitStore as the viewed day's
+// local-midnight epoch (absolute, not a relative offset) so a parked day stays
+// on that calendar date across midnight. Paged by the prev/next intents.
+const VIEWED_DAY_KEY = 'viewedDayMs'
 
-// Upper bound only to stop runaway paging; the prev button is never hidden, so
-// this is effectively "as far back as data exists".
-const MAX_DAY_OFFSET = 3650
+// Floor only, to stop runaway paging; the prev button is never hidden.
+const MAX_DAYS_BACK = 3650
 
-// Normalize any stored/derived offset to a whole number in [0, MAX_DAY_OFFSET].
-export function clampOffset(offset: number): number {
-	if (!Number.isFinite(offset) || offset < 0) return 0
-	return Math.min(MAX_DAY_OFFSET, Math.floor(offset))
+// Local midnight of an epoch.
+function midnight(ms: number): number {
+	const d = new Date(ms)
+	d.setHours(0, 0, 0, 0)
+	return d.getTime()
 }
 
-export function readDayOffset(): number {
-	return clampOffset(AwaitStore.num(DAY_OFFSET_KEY, 0))
+// Add `delta` calendar days to a day (DST-safe: steps wall-clock days, not ms).
+export function stepDays(dayMs: number, delta: number): number {
+	const d = new Date(dayMs)
+	d.setHours(0, 0, 0, 0)
+	d.setDate(d.getDate() + delta)
+	return d.getTime()
 }
 
-// Intent: page one day older.
+// Normalize a candidate day to local midnight, clamped to [today - MAX, today]:
+// never the future, never absurdly far back. Falls back to today if invalid.
+export function clampDay(dayMs: number, todayMs: number): number {
+	const today = midnight(todayMs)
+	if (!Number.isFinite(dayMs)) return today
+	const day = midnight(dayMs)
+	if (day > today) return today
+	const floor = stepDays(today, -MAX_DAYS_BACK)
+	return day < floor ? floor : day
+}
+
+export function readViewedDay(now: Date): number {
+	const today = midnight(now.getTime())
+	return clampDay(AwaitStore.num(VIEWED_DAY_KEY, today), today)
+}
+
+// Intent: page one calendar day older.
 export function prevDay(): void {
-	AwaitStore.set(DAY_OFFSET_KEY, clampOffset(readDayOffset() + 1))
+	const now = new Date()
+	const today = midnight(now.getTime())
+	AwaitStore.set(
+		VIEWED_DAY_KEY,
+		clampDay(stepDays(readViewedDay(now), -1), today),
+	)
 }
 
-// Intent: page one day newer (clamped at today).
+// Intent: page one calendar day newer (clamped at today).
 export function nextDay(): void {
-	AwaitStore.set(DAY_OFFSET_KEY, clampOffset(readDayOffset() - 1))
+	const now = new Date()
+	const today = midnight(now.getTime())
+	AwaitStore.set(
+		VIEWED_DAY_KEY,
+		clampDay(stepDays(readViewedDay(now), 1), today),
+	)
 }

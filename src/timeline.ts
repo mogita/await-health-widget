@@ -1,6 +1,6 @@
 import { REFRESH_MS } from './config'
 import { buildEntry, type Entry } from './health'
-import { readDayOffset } from './nav'
+import { readViewedDay } from './nav'
 import { useSampleData } from './panels'
 
 // Single entry per refresh: the chosen day's hourly candles plus resting and
@@ -8,11 +8,11 @@ import { useSampleData } from './panels'
 // (it only changes when the prev/next intent re-runs this timeline).
 export async function widgetTimeline(): Promise<Timeline<Entry>> {
 	const now = new Date()
-	const offset = readDayOffset()
-	const entry = await buildEntry(now, useSampleData, offset)
+	const entry = await buildEntry(now, useSampleData, readViewedDay(now))
 
 	return {
 		entries: [{ date: now, ...entry }],
-		update: offset === 0 ? new Date(now.getTime() + REFRESH_MS) : 'never',
+		update:
+			entry.dayOffset === 0 ? new Date(now.getTime() + REFRESH_MS) : 'never',
 	}
 }

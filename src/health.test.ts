@@ -28,20 +28,32 @@ test('startOfDayMs: returns local midnight of the given date', () => {
 
 // dayWindow
 
-test('dayWindow: today spans local midnight to now', () => {
+test('dayWindow: today spans local midnight to now, offset 0', () => {
 	const now = new Date(2026, 5, 8, 14, 30, 0)
-	const w = dayWindow(now, 0)
+	const today = new Date(2026, 5, 8, 0, 0, 0, 0).getTime()
+	const w = dayWindow(now, today)
 	expect(w.isToday).toBe(true)
-	expect(w.dayStartMs).toBe(new Date(2026, 5, 8, 0, 0, 0, 0).getTime())
+	expect(w.offset).toBe(0)
+	expect(w.dayStartMs).toBe(today)
 	expect(w.endMs).toBe(now.getTime())
 })
 
-test('dayWindow: a past day spans its full midnight to next midnight', () => {
+test('dayWindow: a past day spans its full midnight to next midnight, offset derived', () => {
 	const now = new Date(2026, 5, 8, 14, 30, 0)
-	const w = dayWindow(now, 2) // Jun 6
+	const jun6 = new Date(2026, 5, 6, 0, 0, 0, 0).getTime()
+	const w = dayWindow(now, jun6)
 	expect(w.isToday).toBe(false)
-	expect(w.dayStart.getTime()).toBe(new Date(2026, 5, 6, 0, 0, 0, 0).getTime())
+	expect(w.offset).toBe(2)
+	expect(w.dayStartMs).toBe(jun6)
 	expect(w.endMs).toBe(new Date(2026, 5, 7, 0, 0, 0, 0).getTime())
+})
+
+test('dayWindow: a mid-day viewed epoch is normalized to that midnight', () => {
+	const now = new Date(2026, 5, 8, 14, 30, 0)
+	const viewed = new Date(2026, 5, 7, 11, 0, 0).getTime()
+	const w = dayWindow(now, viewed)
+	expect(w.dayStartMs).toBe(new Date(2026, 5, 7, 0, 0, 0, 0).getTime())
+	expect(w.offset).toBe(1)
 })
 
 // bucketSamples
