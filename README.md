@@ -35,7 +35,7 @@ The main controls are exposed as `@panel` values in the Await editor:
 
 | Panel             | Default    | Effect                                          |
 | ----------------- | ---------- | ----------------------------------------------- |
-| `accentColor`     | `FF375F`   | Bar color when zone coloring is off             |
+| `accentColor`     | `f88dad`   | Bar color when zone coloring is off             |
 | `colorByZone`     | `true`     | Color each bar by its heart-rate zone           |
 | `showRestingLine` | `true`     | Draw a reference line at resting heart rate     |
 | `useSampleData`   | `false`    | Render a synthetic day to preview without data  |

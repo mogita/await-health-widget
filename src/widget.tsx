@@ -15,6 +15,9 @@ import {
 	BACKGROUND,
 	GRID_COLOR,
 	MIN_BODY,
+	RESTING_COLOR,
+	TEXT_PRIMARY,
+	TEXT_SECONDARY,
 	zoneColor,
 } from './config'
 import { formatBpm, formatRange, hourTickLabels } from './format'
@@ -130,15 +133,6 @@ function chartView(
 						),
 					)
 				: undefined}
-			{showRestingLine && entry.restingHr !== undefined
-				? hLine(
-						'resting',
-						valueToY(entry.restingHr, domain, h),
-						layout.plotWidth,
-						h,
-						['gray', 0.45],
-					)
-				: undefined}
 			<HStack
 				spacing={0}
 				alignment='top'
@@ -146,6 +140,17 @@ function chartView(
 			>
 				{entry.buckets.map((bucket) => candleColumn(bucket, domain, layout))}
 			</HStack>
+			{/* Resting line on top of the candles so it reads as a reference that
+			    cuts across the bars instead of being hidden behind them. */}
+			{showRestingLine && entry.restingHr !== undefined
+				? hLine(
+						'resting',
+						valueToY(entry.restingHr, domain, h),
+						layout.plotWidth,
+						h,
+						RESTING_COLOR,
+					)
+				: undefined}
 		</ZStack>
 	)
 }
@@ -194,7 +199,7 @@ function yLabel(value: number, y: number, w: number, h: number): NativeView {
 			<Text
 				value={`${value}`}
 				fontSize={9}
-				foreground='secondary'
+				foreground={TEXT_SECONDARY}
 				fontDesign='rounded'
 				monospacedDigit
 				height={Y_LABEL_H}
@@ -285,7 +290,7 @@ function headerView(entry: Entry): NativeView {
 			<Text
 				value='Heart Rate'
 				fontSize={12}
-				foreground='primary'
+				foreground={TEXT_PRIMARY}
 				fontWeight={700}
 			/>
 			<Spacer />
@@ -297,7 +302,12 @@ function headerView(entry: Entry): NativeView {
 				fontDesign='rounded'
 				monospacedDigit
 			/>
-			<Text value='bpm' fontSize={10} foreground='secondary' fontWeight={600} />
+			<Text
+				value='bpm'
+				fontSize={10}
+				foreground={TEXT_SECONDARY}
+				fontWeight={600}
+			/>
 		</HStack>
 	)
 }
@@ -324,7 +334,7 @@ function tickText(label: string): NativeView {
 		<Text
 			value={label}
 			fontSize={9}
-			foreground='secondary'
+			foreground={TEXT_SECONDARY}
 			fontDesign='rounded'
 		/>
 	)
@@ -348,13 +358,13 @@ function emptyChart(kind: ChartKind): NativeView {
 				<Icon
 					value='heart.text.square'
 					fontSize={kind === 'compact' ? 16 : 22}
-					foreground='secondary'
+					foreground={TEXT_SECONDARY}
 				/>
 				{kind === 'compact' ? undefined : (
 					<Text
 						value='No heart rate this day'
 						fontSize={11}
-						foreground='secondary'
+						foreground={TEXT_SECONDARY}
 						fontWeight={600}
 					/>
 				)}
@@ -374,20 +384,24 @@ function footerView(
 	return (
 		<HStack maxWidth spacing={6}>
 			<Button intent={prevIntent} buttonStyle='plain'>
-				<Icon value='chevron.left' fontSize={11} foreground='secondary' />
+				<Icon value='chevron.left' fontSize={11} foreground={TEXT_SECONDARY} />
 			</Button>
 			<Spacer />
 			<Text
 				value={entry.dayLabel}
 				fontSize={10}
-				foreground='secondary'
+				foreground={TEXT_SECONDARY}
 				fontWeight={600}
 				fontDesign='rounded'
 			/>
 			<Spacer />
 			{entry.dayOffset > 0 ? (
 				<Button intent={nextIntent} buttonStyle='plain'>
-					<Icon value='chevron.right' fontSize={11} foreground='secondary' />
+					<Icon
+						value='chevron.right'
+						fontSize={11}
+						foreground={TEXT_SECONDARY}
+					/>
 				</Button>
 			) : undefined}
 		</HStack>

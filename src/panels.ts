@@ -2,7 +2,7 @@
 // comment must sit immediately above a top-level `const` with a literal value.
 
 // @panel {type:'color'}
-export const accentColor = 'FF375F'
+export const accentColor = 'f88dad'
 
 // @panel
 export const colorByZone = true
