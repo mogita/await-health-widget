@@ -85,13 +85,34 @@ export const THEMES: Record<string, Theme> = {
 			{ max: Number.POSITIVE_INFINITY, color: 'd92f5e' }, // elevated — deep rose
 		],
 	},
+	// navy / slate-blue / off-white / taupe / brown. A warm, earthy theme on the
+	// brown base with cool accents: cream text, a navy-to-cream zone ramp (so the
+	// common normal zone reads as blue-on-brown), a slate-blue heart, and a soft
+	// taupe resting line. Taupe blends into the brown base, so it stays a subtle
+	// line rather than a bar color.
+	Stranding: {
+		background: '8b786d', // warm brown base
+		textPrimary: 'ebf5ee', // off-white
+		textSecondary: ['ebf5ee', 0.65],
+		axis: ['ebf5ee', 0.3],
+		grid: ['ebf5ee', 0.2],
+		resting: 'bfa89e', // soft taupe line
+		heart: 'ebf5ee',
+		zones: [
+			{ max: 60, color: '78a1bb' }, // resting — slate-blue
+			{ max: 100, color: '283044' }, // normal / low — navy
+			{ max: Number.POSITIVE_INFINITY, color: 'ebf5ee' }, // elevated — off-white
+		],
+	},
 }
 
-export const DEFAULT_THEME = 'Blueprint'
+// The first declared theme, used as the fallback whenever a selected name is
+// not a defined theme.
+export const FIRST_THEME = Object.keys(THEMES)[0]!
 
-// Resolve a panel-selected theme name, falling back to the default.
+// Resolve a theme name to its palette, falling back to the first theme.
 export function resolveTheme(name: string): Theme {
-	return THEMES[name] ?? THEMES[DEFAULT_THEME]!
+	return THEMES[name] ?? THEMES[FIRST_THEME]!
 }
 
 export function zoneColor(theme: Theme, bpm: number): Color {

@@ -1,13 +1,18 @@
 import { expect, test } from 'bun:test'
-import { DEFAULT_THEME, resolveTheme, THEMES, zoneColor } from './theme'
+import { FIRST_THEME, resolveTheme, THEMES, zoneColor } from './theme'
 
 test('resolveTheme: returns the named theme', () => {
 	expect(resolveTheme('Blueprint')).toBe(THEMES.Blueprint!)
 	expect(resolveTheme('Sourberry')).toBe(THEMES.Sourberry!)
 })
 
-test('resolveTheme: an unknown name falls back to the default', () => {
-	expect(resolveTheme('Nope')).toBe(THEMES[DEFAULT_THEME]!)
+test('resolveTheme: an unknown name falls back to the first theme', () => {
+	expect(resolveTheme('Nope')).toBe(THEMES[FIRST_THEME]!)
+})
+
+test('FIRST_THEME is the first declared theme', () => {
+	expect(FIRST_THEME).toBe(Object.keys(THEMES)[0]!)
+	expect(FIRST_THEME).toBe('Blueprint')
 })
 
 test('every theme defines all color roles and a well-formed zone ramp', () => {

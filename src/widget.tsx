@@ -39,6 +39,7 @@ import { showRestingLine, theme } from './panels'
 import { resolveTheme, zoneColor } from './theme'
 
 // Resolve the panel-selected theme once; every render function reads from it.
+// An unknown name (e.g. a theme removed from the code) falls back to the first.
 const THEME = resolveTheme(theme)
 
 export function widget(
