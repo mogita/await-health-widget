@@ -1,11 +1,10 @@
 // Tunable controls surfaced in the Await app's panel editor. Each `@panel`
 // comment must sit immediately above a top-level `const` with a literal value.
 
-// @panel {type:'color'}
-export const accentColor = 'f88dad'
-
-// @panel
-export const colorByZone = true
+// Color theme. Keep these items in sync with the THEMES keys in theme.ts (the
+// menu list must be a static literal, so it cannot be derived from that record).
+// @panel {type:'menu',items:['Blueprint','Sourberry']}
+export const theme = 'Blueprint'
 
 // @panel
 export const showRestingLine = true

@@ -6,6 +6,7 @@ const minify = Bun.argv.includes('--minify')
 const FILES = [
 	'src/panels.ts',
 	'src/config.ts',
+	'src/theme.ts',
 	'src/format.ts',
 	'src/nav.ts',
 	'src/health.ts',

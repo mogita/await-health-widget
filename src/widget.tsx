@@ -10,17 +10,7 @@ import {
 	VStack,
 	ZStack,
 } from 'await'
-import {
-	AXIS_COLOR,
-	BACKGROUND,
-	GRID_COLOR,
-	HEART_COLOR,
-	MIN_BODY,
-	RESTING_COLOR,
-	TEXT_PRIMARY,
-	TEXT_SECONDARY,
-	zoneColor,
-} from './config'
+import { MIN_BODY } from './config'
 import {
 	formatAgo,
 	formatBpm,
@@ -45,7 +35,11 @@ import {
 	segmentGeometry,
 	valueToY,
 } from './layout'
-import { accentColor, colorByZone, showRestingLine } from './panels'
+import { showRestingLine, theme } from './panels'
+import { resolveTheme, zoneColor } from './theme'
+
+// Resolve the panel-selected theme once; every render function reads from it.
+const THEME = resolveTheme(theme)
 
 export function widget(
 	entry: WidgetEntry<Entry> & {
@@ -77,7 +71,7 @@ export function widget(
 
 	return (
 		<ZStack alignment='topLeading' maxSides>
-			<Color value={BACKGROUND} />
+			<Color value={THEME.background} />
 			<VStack
 				alignment='leading'
 				spacing={layout.spacing}
@@ -138,9 +132,9 @@ function chartView(
 	const h = layout.plotHeight
 	return (
 		<ZStack alignment='topLeading' width={layout.plotWidth} height={h}>
-			{hLine('baseline', h - 1, layout.plotWidth, h, AXIS_COLOR)}
+			{hLine('baseline', h - 1, layout.plotWidth, h, THEME.axis)}
 			{HOUR_TICKS.filter((hour) => hour > 0).map((hour) =>
-				vLine(`v${hour}`, hour * layout.slot, layout.plotWidth, h, GRID_COLOR),
+				vLine(`v${hour}`, hour * layout.slot, layout.plotWidth, h, THEME.grid),
 			)}
 			{showRestingLine && entry.restingHr !== undefined
 				? hLine(
@@ -148,7 +142,7 @@ function chartView(
 						valueToY(entry.restingHr, domain, h),
 						layout.plotWidth,
 						h,
-						RESTING_COLOR,
+						THEME.resting,
 					)
 				: undefined}
 			<HStack
@@ -224,7 +218,7 @@ function yLabel(value: number): NativeView {
 		<Text
 			value={`${value}`}
 			fontSize={7}
-			foreground={TEXT_SECONDARY}
+			foreground={THEME.textSecondary}
 			fontDesign='rounded'
 			monospacedDigit
 		/>
@@ -281,7 +275,7 @@ function segmentBar(
 	const minBody = Math.max(MIN_BODY, layout.barWidth)
 	const geo = segmentGeometry(segment.min, segment.max, domain, h, minBody)
 	const mid = (segment.min + segment.max) / 2
-	const color = colorByZone ? zoneColor(mid) : accentColor
+	const color = zoneColor(THEME, mid)
 	return (
 		<VStack
 			id={`s${index}`}
@@ -309,9 +303,9 @@ function statsHeader(entry: Entry): NativeView {
 		<HStack maxWidth spacing={6} alignment='top'>
 			<Icon
 				value='heart.fill'
-				fontSize={14}
-				foreground={HEART_COLOR}
-				offset={{ x: 3, y: 6 }}
+				fontSize={16}
+				foreground={THEME.heart}
+				offset={{ x: 3, y: 5 }}
 			/>
 			<Spacer />
 			<VStack alignment='leading' spacing={0}>
@@ -331,16 +325,16 @@ function statRow(label: string, value: number | undefined): NativeView {
 				value={label}
 				fontSize={10}
 				fontWeight={600}
-				foreground={TEXT_SECONDARY}
+				foreground={THEME.textSecondary}
 				lineLimit={1}
 				minimumScaleFactor={0.8}
 				frame={{ width: 42, alignment: 'trailing' }}
 			/>
 			<Text
 				value={formatBpm(value)}
-				fontSize={11}
+				fontSize={10}
 				fontWeight={700}
-				foreground={TEXT_PRIMARY}
+				foreground={THEME.textPrimary}
 				fontDesign='rounded'
 				monospacedDigit
 			/>
@@ -348,7 +342,7 @@ function statRow(label: string, value: number | undefined): NativeView {
 				value='bpm'
 				fontSize={8}
 				fontWeight={600}
-				foreground={TEXT_SECONDARY}
+				foreground={THEME.textSecondary}
 			/>
 		</HStack>
 	)
@@ -382,7 +376,7 @@ function tickText(label: string): NativeView {
 		<Text
 			value={label}
 			fontSize={7}
-			foreground={TEXT_SECONDARY}
+			foreground={THEME.textSecondary}
 			fontDesign='rounded'
 		/>
 	)
@@ -406,13 +400,13 @@ function emptyChart(kind: ChartKind): NativeView {
 				<Icon
 					value='heart.text.square'
 					fontSize={kind === 'compact' ? 16 : 22}
-					foreground={TEXT_SECONDARY}
+					foreground={THEME.textSecondary}
 				/>
 				{kind === 'compact' ? undefined : (
 					<Text
 						value='No heart rate this day'
 						fontSize={11}
-						foreground={TEXT_SECONDARY}
+						foreground={THEME.textSecondary}
 						fontWeight={600}
 					/>
 				)}
@@ -436,7 +430,7 @@ function navButton(
 		<Button intent={intent} buttonStyle='plain'>
 			<ZStack alignment={align} width={NAV_TAP_W} height={NAV_TAP_H}>
 				<Rectangle fill={['gray', 0]} width={NAV_TAP_W} height={NAV_TAP_H} />
-				<Icon value={icon} fontSize={12} foreground={TEXT_SECONDARY} />
+				<Icon value={icon} fontSize={12} foreground={THEME.textSecondary} />
 			</ZStack>
 		</Button>
 	)
@@ -467,7 +461,7 @@ function footerView(
 					<Text
 						value={entry.dayLabel}
 						fontSize={9}
-						foreground={TEXT_SECONDARY}
+						foreground={THEME.textSecondary}
 						fontWeight={600}
 						fontDesign='rounded'
 						lineLimit={1}
@@ -477,7 +471,7 @@ function footerView(
 						<Text
 							value={ago}
 							fontSize={8}
-							foreground={TEXT_SECONDARY}
+							foreground={THEME.textSecondary}
 							fontWeight={500}
 							lineLimit={1}
 							minimumScaleFactor={0.7}
