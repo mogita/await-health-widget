@@ -49,6 +49,24 @@ export const THEMES: Record<string, Theme> = {
 			{ max: Number.POSITIVE_INFINITY, color: 'fe4a49' }, // elevated — tomato
 		],
 	},
+	// olive / leaf-green / mint / teal / slate-green. A dark theme. The palette
+	// greens cluster in mid-lightness (only the mint is truly light), so a
+	// derived deep forest-green canvas keeps the zone greens legible; the mint is
+	// the light text. Zones brighten as the rate climbs (olive < teal < leaf).
+	Deepforest: {
+		background: '0f1f16', // derived deep forest-green canvas
+		textPrimary: '9ffcdf', // pale mint
+		textSecondary: ['9ffcdf', 0.6],
+		axis: ['9ffcdf', 0.28],
+		grid: ['9ffcdf', 0.22],
+		resting: ['9ffcdf', 0.4], // pale mint, distinct from the zone greens
+		heart: '6cc551', // leaf-green
+		zones: [
+			{ max: 60, color: '447604' }, // resting / low — olive
+			{ max: 100, color: '52ad9c' }, // normal — teal
+			{ max: Number.POSITIVE_INFINITY, color: '6cc551' }, // elevated — leaf-green
+		],
+	},
 }
 
 export const DEFAULT_THEME = 'Blueprint'

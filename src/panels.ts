@@ -3,7 +3,7 @@
 
 // Color theme. Keep these items in sync with the THEMES keys in theme.ts (the
 // menu list must be a static literal, so it cannot be derived from that record).
-// @panel {type:'menu',items:['Blueprint','Sourberry']}
+// @panel {type:'menu',items:['Blueprint','Sourberry','Deepforest']}
 export const theme = 'Blueprint'
 
 // @panel
