@@ -2,9 +2,7 @@ import {
 	DAY_HOURS,
 	DEFAULT_DOMAIN_HI,
 	DEFAULT_DOMAIN_LO,
-	DOMAIN_PAD_RATIO,
 	HOUR_MS,
-	MIN_DOMAIN_PAD,
 	MIN_DOMAIN_SPAN,
 	SEGMENT_GAP_BPM,
 } from './config'
@@ -47,6 +45,7 @@ export type Entry = {
 	hasData: boolean
 	restingHr?: number
 	latestHr?: number
+	latestAtMs?: number
 	dayOffset: number
 	dayLabel: string
 }
@@ -182,20 +181,27 @@ export function dayStats(buckets: HourBucket[]): DayStats {
 	return { min, max, avg: sum / count }
 }
 
-// Padded BPM axis bounds. Falls back to a sane resting range with no data, and
-// guarantees a minimum visible span so a flat day still reads as a chart.
-export function computeDomain(buckets: HourBucket[]): Domain {
+// BPM axis bounds floored/ceiled to the day's own min and max (Apple-style),
+// so bars fill the height and the two axis labels are the day's extremes. The
+// resting value is folded into the low bound when present, so the resting line
+// lands honestly within the plot instead of clamping to the floor. Falls back
+// to a sane range with no data, and guarantees a minimum visible span so a flat
+// day still reads as a chart.
+export function computeDomain(
+	buckets: HourBucket[],
+	restingHr?: number,
+): Domain {
 	const stats = dayStats(buckets)
 	if (stats.min === undefined || stats.max === undefined) {
 		return { lo: DEFAULT_DOMAIN_LO, hi: DEFAULT_DOMAIN_HI }
 	}
 
-	const pad = Math.max(
-		MIN_DOMAIN_PAD,
-		(stats.max - stats.min) * DOMAIN_PAD_RATIO,
-	)
-	let lo = Math.max(0, Math.floor(stats.min - pad))
-	let hi = Math.ceil(stats.max + pad)
+	const low =
+		restingHr !== undefined && Number.isFinite(restingHr)
+			? Math.min(stats.min, restingHr)
+			: stats.min
+	let lo = Math.max(0, Math.floor(low))
+	let hi = Math.ceil(stats.max)
 	if (hi - lo < MIN_DOMAIN_SPAN) {
 		const mid = (hi + lo) / 2
 		lo = Math.max(0, Math.round(mid - MIN_DOMAIN_SPAN / 2))
@@ -204,21 +210,30 @@ export function computeDomain(buckets: HourBucket[]): Domain {
 	return { lo, hi }
 }
 
-// Value of the most recent reading, used for the "current BPM" header.
+// The most recent reading: its value and timestamp (ms). Used for the header's
+// current BPM and the "X min ago" freshness.
+export function latestSample(
+	samples: AwaitHealthQuantitySample[],
+): { value: number; atMs: number } | undefined {
+	let best: { value: number; atMs: number } | undefined
+	let bestMs = Number.NEGATIVE_INFINITY
+	for (const sample of samples) {
+		if (!Number.isFinite(sample.value)) continue
+		// Key on startDate (the measurement instant), matching bucketSamples.
+		const t = sample.startDate.getTime()
+		if (t >= bestMs) {
+			bestMs = t
+			best = { value: sample.value, atMs: t }
+		}
+	}
+	return best
+}
+
+// Value of the most recent reading.
 export function latestFromSamples(
 	samples: AwaitHealthQuantitySample[],
 ): number | undefined {
-	let latest: number | undefined
-	let latestMs = Number.NEGATIVE_INFINITY
-	for (const sample of samples) {
-		if (!Number.isFinite(sample.value)) continue
-		const t = sample.endDate.getTime()
-		if (t >= latestMs) {
-			latestMs = t
-			latest = sample.value
-		}
-	}
-	return latest
+	return latestSample(samples)?.value
 }
 
 // Synthetic but plausible day of readings: a resting overnight baseline, a
@@ -273,21 +288,19 @@ function sampleBaseline(hour: number): number {
 }
 
 // The only HealthKit-touching function. Pulls the chosen day's heart-rate
-// series (or a synthetic one), buckets it, and resolves resting/latest. Today
-// also reads the live snapshot; past days come entirely from the range query.
+// series (or a synthetic one), buckets it, and resolves the resting value plus
+// the latest reading with its timestamp. The range query carries timestamps,
+// so the latest reading comes from the samples (today's last sample is the
+// current HR) rather than the time-less snapshot.
 export async function buildEntry(
 	now: Date,
 	useMock: boolean,
 	viewedDayMs: number,
 ): Promise<Entry> {
-	const { dayStart, dayStartMs, endMs, isToday, offset } = dayWindow(
-		now,
-		viewedDayMs,
-	)
+	const { dayStart, dayStartMs, endMs, offset } = dayWindow(now, viewedDayMs)
 
 	let samples: AwaitHealthQuantitySample[]
 	let restingHr: number | undefined
-	let latestHr: number | undefined
 
 	if (useMock) {
 		samples = generateSampleDay(dayStartMs, endMs)
@@ -299,21 +312,19 @@ export async function buildEntry(
 		})
 		samples = range?.heartRate ?? []
 		restingHr = latestFromSamples(range?.restingHeartRate ?? [])
-		if (isToday) {
-			const snapshot = await AwaitHealth.get()
-			latestHr = snapshot?.heartRate
-			if (restingHr === undefined) restingHr = snapshot?.restingHeartRate
-		}
 	}
 
 	const buckets = bucketSamples(samples, dayStartMs)
-	if (latestHr === undefined) latestHr = latestFromSamples(samples)
+	const latest = latestSample(samples)
 
 	return {
 		buckets,
 		hasData: hasData(buckets),
 		restingHr,
-		latestHr,
+		latestHr: latest?.value,
+		// Clamp against clock skew so freshness never reads "in N seconds".
+		latestAtMs:
+			latest === undefined ? undefined : Math.min(latest.atMs, now.getTime()),
 		dayOffset: offset,
 		dayLabel: formatDayLabel(dayStart, offset),
 	}

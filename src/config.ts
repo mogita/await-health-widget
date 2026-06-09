@@ -5,12 +5,11 @@ export const DAY_HOURS = 24
 // chart fresh without asking iOS to wake the widget too aggressively.
 export const REFRESH_MS = 15 * 60 * 1000
 
-// Y-axis (BPM) domain shaping.
+// Y-axis (BPM) domain shaping. The axis floors/ceils to the day's own min/max;
+// these only cover the no-data fallback and a minimum span for a flat day.
 export const DEFAULT_DOMAIN_LO = 40
 export const DEFAULT_DOMAIN_HI = 140
-export const DOMAIN_PAD_RATIO = 0.12
-export const MIN_DOMAIN_PAD = 6
-export const MIN_DOMAIN_SPAN = 24
+export const MIN_DOMAIN_SPAN = 16
 
 // Smallest candle body in points, so a single-reading hour stays visible.
 export const MIN_BODY = 3
@@ -30,8 +29,9 @@ export const BACKGROUND = '1d2f6f' // twilight-indigo canvas
 export const TEXT_PRIMARY: Color = 'f9e9ec' // lavender-blush
 export const TEXT_SECONDARY: Color = ['f9e9ec', 0.6] // muted lavender
 export const AXIS_COLOR: Color = ['f9e9ec', 0.28] // lavender baseline
-export const GRID_COLOR: Color = ['f9e9ec', 0.15] // lavender gridlines
-export const RESTING_COLOR: Color = ['fac748', 0.85] // tuscan resting line
+export const GRID_COLOR: Color = ['f9e9ec', 0.22] // lavender gridlines
+export const RESTING_COLOR: Color = ['fac748', 0.4] // pale tuscan resting line
+export const HEART_COLOR: Color = 'f88dad' // bubblegum heart glyph
 
 // Heart-rate zones: three well-separated palette hues so they stay legible at
 // thin bar widths (bar height already carries intensity). wisteria rest /

@@ -9,6 +9,7 @@ import {
 	generateSampleDay,
 	type HourBucket,
 	latestFromSamples,
+	latestSample,
 	startOfDayMs,
 } from './health'
 
@@ -192,34 +193,48 @@ test('computeDomain: no data falls back to the default resting range', () => {
 	})
 })
 
-test('computeDomain: pads around the data range', () => {
+test('computeDomain: floors/ceils tight to the day min and max', () => {
 	const buckets = bucketSamples([sample(9, 0, 70), sample(9, 1, 90)], DAY_START)
-	expect(computeDomain(buckets)).toEqual({ lo: 64, hi: 96 })
+	expect(computeDomain(buckets)).toEqual({ lo: 70, hi: 90 })
 })
 
 test('computeDomain: enforces a minimum span for a flat day', () => {
 	const buckets = bucketSamples([sample(9, 0, 60), sample(9, 1, 60)], DAY_START)
 	const domain = computeDomain(buckets)
-	expect(domain.hi - domain.lo).toBeGreaterThanOrEqual(24)
-	expect(domain).toEqual({ lo: 48, hi: 72 })
+	expect(domain.hi - domain.lo).toBeGreaterThanOrEqual(16)
+	expect(domain).toEqual({ lo: 52, hi: 68 })
 })
 
 test('computeDomain: low value clamps lo to 0 and still keeps the min span', () => {
 	const buckets = bucketSamples([sample(0, 0, 5)], DAY_START)
 	const domain = computeDomain(buckets)
-	expect(domain).toEqual({ lo: 0, hi: 24 })
-	expect(domain.hi - domain.lo).toBe(24)
+	expect(domain).toEqual({ lo: 0, hi: 16 })
+	expect(domain.hi - domain.lo).toBe(16)
 })
 
-// latestFromSamples
+test('computeDomain: a resting HR below the day min widens the low bound', () => {
+	const buckets = bucketSamples([sample(9, 0, 70), sample(9, 1, 90)], DAY_START)
+	// Without resting the floor is 70; resting 55 pulls it down to 55.
+	expect(computeDomain(buckets, 55)).toEqual({ lo: 55, hi: 90 })
+	// A resting HR above the day min does not raise the floor.
+	expect(computeDomain(buckets, 80)).toEqual({ lo: 70, hi: 90 })
+})
+
+// latestSample / latestFromSamples
+
+test('latestSample: returns the value and timestamp of the most recent reading', () => {
+	const s = sample(15, 30, 120)
+	const got = latestSample([sample(8, 0, 70), s, sample(10, 0, 95)])
+	expect(got).toEqual({ value: 120, atMs: s.endDate.getTime() })
+})
+
+test('latestSample: undefined when there is nothing finite', () => {
+	expect(latestSample([])).toBeUndefined()
+})
 
 test('latestFromSamples: returns value of the most recent reading', () => {
 	const samples = [sample(8, 0, 70), sample(15, 30, 120), sample(10, 0, 95)]
 	expect(latestFromSamples(samples)).toBe(120)
-})
-
-test('latestFromSamples: undefined when there is nothing finite', () => {
-	expect(latestFromSamples([])).toBeUndefined()
 })
 
 // generateSampleDay

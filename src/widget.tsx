@@ -14,13 +14,20 @@ import {
 	AXIS_COLOR,
 	BACKGROUND,
 	GRID_COLOR,
+	HEART_COLOR,
 	MIN_BODY,
 	RESTING_COLOR,
 	TEXT_PRIMARY,
 	TEXT_SECONDARY,
 	zoneColor,
 } from './config'
-import { formatBpm, formatRange, hourTickLabels } from './format'
+import {
+	formatAgo,
+	formatBpm,
+	formatHourTick,
+	formatRange,
+	HOUR_TICKS,
+} from './format'
 import {
 	computeDomain,
 	type DayStats,
@@ -31,7 +38,6 @@ import {
 	type Segment,
 } from './health'
 import {
-	bpmTicks,
 	type ChartKind,
 	type ChartLayout,
 	classifyFamily,
@@ -75,14 +81,20 @@ export function widget(
 			<VStack
 				alignment='leading'
 				spacing={layout.spacing}
-				padding={layout.padding}
+				padding={{
+					top: layout.padTop,
+					left: layout.padding,
+					right: layout.padding,
+					bottom: layout.padBottom,
+				}}
 				frame={{ maxWidth: 'max', maxHeight: 'max', alignment: 'topLeading' }}
 			>
-				{layout.showHeader ? headerView(entry) : undefined}
+				{layout.showHeader ? statsHeader(entry) : undefined}
 				{body}
 				{layout.showFooter
 					? footerView(
 							entry,
+							entry.date.getTime(),
 							entry.prevIntent,
 							entry.nextIntent,
 							entry.todayIntent,
@@ -98,18 +110,18 @@ export function widget(
 // is absorbed here and the footer stays flush to the bottom — matching the
 // empty-day placeholder so both states pin the footer identically.
 function dayChart(entry: Entry, layout: ChartLayout): NativeView {
-	const domain = computeDomain(entry.buckets)
+	const domain = computeDomain(entry.buckets, entry.restingHr)
 	return (
 		<HStack
 			spacing={layout.hgap}
 			alignment='top'
-			frame={{ maxHeight: 'max', alignment: 'topLeading' }}
+			frame={{ maxHeight: 'max', alignment: 'leading' }}
 		>
+			{layout.showYAxis ? yAxisView(domain, layout) : undefined}
 			<VStack spacing={layout.axisGap} alignment='leading'>
 				{chartView(entry, domain, layout)}
 				{layout.showAxis ? axisView(layout) : undefined}
 			</VStack>
-			{layout.showYAxis ? yAxisView(domain, layout) : undefined}
 		</HStack>
 	)
 }
@@ -119,35 +131,17 @@ function chartView(
 	domain: Domain,
 	layout: ChartLayout,
 ): NativeView {
-	// Layered, every layer the same plotWidth x plotHeight box anchored top-left
-	// so they register: a bottom baseline, an optional resting line, and the
-	// candle columns on top. Vertical placement uses stacked fixed-height blocks
-	// that sum to exactly plotHeight (no offset, no Spacer), so each element
-	// lands precisely where its value maps and nothing can overflow or compress.
+	// Layered, every layer the same plotWidth x plotHeight box anchored top-left.
+	// Background context first: baseline, faint vertical hour gridlines, and the
+	// pale resting line — all BEHIND the candles so the bars stay the focus.
+	// Lines are placed by fixed-size transparent blocks (no offset, no Spacer).
 	const h = layout.plotHeight
 	return (
 		<ZStack alignment='topLeading' width={layout.plotWidth} height={h}>
 			{hLine('baseline', h - 1, layout.plotWidth, h, AXIS_COLOR)}
-			{layout.showYAxis
-				? bpmTicks(domain).map((tick) =>
-						hLine(
-							`g${tick}`,
-							valueToY(tick, domain, h),
-							layout.plotWidth,
-							h,
-							GRID_COLOR,
-						),
-					)
-				: undefined}
-			<HStack
-				spacing={0}
-				alignment='top'
-				frame={{ width: layout.plotWidth, height: h }}
-			>
-				{entry.buckets.map((bucket) => candleColumn(bucket, domain, layout))}
-			</HStack>
-			{/* Resting line on top of the candles so it reads as a reference that
-			    cuts across the bars instead of being hidden behind them. */}
+			{HOUR_TICKS.filter((hour) => hour > 0).map((hour) =>
+				vLine(`v${hour}`, hour * layout.slot, layout.plotWidth, h, GRID_COLOR),
+			)}
 			{showRestingLine && entry.restingHr !== undefined
 				? hLine(
 						'resting',
@@ -157,6 +151,13 @@ function chartView(
 						RESTING_COLOR,
 					)
 				: undefined}
+			<HStack
+				spacing={0}
+				alignment='top'
+				frame={{ width: layout.plotWidth, height: h }}
+			>
+				{entry.buckets.map((bucket) => candleColumn(bucket, domain, layout))}
+			</HStack>
 		</ZStack>
 	)
 }
@@ -169,49 +170,64 @@ function hLine(
 	w: number,
 	h: number,
 	color: Color,
+	thickness = 1,
 ): NativeView {
-	const top = Math.max(0, Math.min(y, h - 1))
+	const t = Math.max(1, thickness)
+	const top = Math.max(0, Math.min(y, h - t))
 	return (
 		<VStack id={id} spacing={0} width={w} height={h}>
 			<Rectangle fill={['gray', 0]} width={w} height={top} />
-			<Rectangle fill={color} width={w} height={1} />
-			<Rectangle fill={['gray', 0]} width={w} height={h - top - 1} />
+			<Rectangle fill={color} width={w} height={t} />
+			<Rectangle fill={['gray', 0]} width={w} height={h - top - t} />
 		</VStack>
 	)
 }
 
-// Right-side BPM labels, one per gridline tick, each positioned at its value.
+// A 1px vertical line at horizontal position `x`, placed by fixed-width
+// transparent blocks (the column-wise mirror of hLine).
+function vLine(
+	id: string,
+	x: number,
+	w: number,
+	h: number,
+	color: Color,
+): NativeView {
+	const left = Math.max(0, Math.min(x, w - 1))
+	return (
+		<HStack id={id} spacing={0} width={w} height={h}>
+			<Rectangle fill={['gray', 0]} width={left} height={h} />
+			<Rectangle fill={color} width={1} height={h} />
+			<Rectangle fill={['gray', 0]} width={w - left - 1} height={h} />
+		</HStack>
+	)
+}
+
+// Left y-axis: just the day's max (top) and min (bottom) — the floor/ceil of
+// the tight domain — right-aligned toward the plot.
 function yAxisView(domain: Domain, layout: ChartLayout): NativeView {
-	const h = layout.plotHeight
-	const w = layout.yLabelWidth
 	return (
-		<ZStack alignment='topLeading' width={w} height={h}>
-			{bpmTicks(domain).map((tick) =>
-				yLabel(tick, valueToY(tick, domain, h), w, h),
-			)}
-		</ZStack>
+		<VStack
+			alignment='trailing'
+			spacing={0}
+			width={layout.yLabelWidth}
+			height={layout.plotHeight}
+		>
+			{yLabel(domain.hi)}
+			<Spacer />
+			{yLabel(domain.lo)}
+		</VStack>
 	)
 }
 
-const Y_LABEL_H = 11
-
-function yLabel(value: number, y: number, w: number, h: number): NativeView {
-	// Center the label box on the gridline; clamp so it stays inside the plot.
-	// Three fixed heights summing to h (no Spacer) keep placement deterministic.
-	const top = Math.max(0, Math.min(y - Y_LABEL_H / 2, h - Y_LABEL_H))
+function yLabel(value: number): NativeView {
 	return (
-		<VStack id={`y${value}`} spacing={0} width={w} height={h}>
-			<Rectangle fill={['gray', 0]} width={w} height={top} />
-			<Text
-				value={`${value}`}
-				fontSize={9}
-				foreground={TEXT_SECONDARY}
-				fontDesign='rounded'
-				monospacedDigit
-				height={Y_LABEL_H}
-			/>
-			<Rectangle fill={['gray', 0]} width={w} height={h - top - Y_LABEL_H} />
-		</VStack>
+		<Text
+			value={`${value}`}
+			fontSize={7}
+			foreground={TEXT_SECONDARY}
+			fontDesign='rounded'
+			monospacedDigit
+		/>
 	)
 }
 
@@ -285,52 +301,78 @@ function segmentBar(
 	)
 }
 
-function headerView(entry: Entry): NativeView {
-	const headerColor =
-		colorByZone && entry.latestHr !== undefined
-			? zoneColor(entry.latestHr)
-			: accentColor
-
+// Header: a heart glyph nudged to the top-right of the left corner, and a
+// compact two-column Latest/Resting stat block on the right. Values are neutral
+// white (the chart bars carry the zone colors). Freshness lives in the footer.
+function statsHeader(entry: Entry): NativeView {
 	return (
-		<HStack maxWidth spacing={4}>
-			<Text
-				value='Heart Rate'
-				fontSize={12}
-				foreground={TEXT_PRIMARY}
-				fontWeight={700}
+		<HStack maxWidth spacing={6} alignment='top'>
+			<Icon
+				value='heart.fill'
+				fontSize={14}
+				foreground={HEART_COLOR}
+				offset={{ x: 3, y: 6 }}
 			/>
 			<Spacer />
+			<VStack alignment='leading' spacing={0}>
+				{statRow('Latest', entry.latestHr)}
+				{statRow('Resting', entry.restingHr)}
+			</VStack>
+		</HStack>
+	)
+}
+
+function statRow(label: string, value: number | undefined): NativeView {
+	return (
+		<HStack spacing={3} alignment='lastTextBaseline'>
+			{/* Right-aligned label hugs the value so the label/value pair reads as a
+			    unit and both rows share the same tight gap. */}
 			<Text
-				value={formatBpm(entry.latestHr)}
-				fontSize={14}
-				foreground={headerColor}
-				fontWeight={800}
+				value={label}
+				fontSize={10}
+				fontWeight={600}
+				foreground={TEXT_SECONDARY}
+				lineLimit={1}
+				minimumScaleFactor={0.8}
+				frame={{ width: 42, alignment: 'trailing' }}
+			/>
+			<Text
+				value={formatBpm(value)}
+				fontSize={11}
+				fontWeight={700}
+				foreground={TEXT_PRIMARY}
 				fontDesign='rounded'
 				monospacedDigit
 			/>
 			<Text
 				value='bpm'
-				fontSize={10}
-				foreground={TEXT_SECONDARY}
+				fontSize={8}
 				fontWeight={600}
+				foreground={TEXT_SECONDARY}
 			/>
 		</HStack>
 	)
 }
 
+// "X min ago" for today only (minute granularity, no seconds); nothing for a
+// past day, where elapsed time is not meaningful.
+function freshnessText(entry: Entry, nowMs: number): string | undefined {
+	if (entry.dayOffset !== 0 || entry.latestAtMs === undefined) return undefined
+	return formatAgo(nowMs - entry.latestAtMs)
+}
+
+// X-axis hour labels (00/06/12/18), each pinned to the left of a 6-hour
+// segment so it sits under its vertical gridline.
 function axisView(layout: ChartLayout): NativeView {
-	const labels = hourTickLabels()
+	const segment = 6 * layout.slot
 	return (
-		<HStack width={layout.plotWidth}>
-			{tickText(labels[0]!)}
-			<Spacer />
-			{tickText(labels[1]!)}
-			<Spacer />
-			{tickText(labels[2]!)}
-			<Spacer />
-			{tickText(labels[3]!)}
-			<Spacer />
-			{tickText(labels[4]!)}
+		<HStack spacing={0} width={layout.plotWidth}>
+			{HOUR_TICKS.map((hour) => (
+				<HStack id={`x${hour}`} spacing={0} width={segment}>
+					{tickText(formatHourTick(hour))}
+					<Spacer />
+				</HStack>
+			))}
 		</HStack>
 	)
 }
@@ -339,7 +381,7 @@ function tickText(label: string): NativeView {
 	return (
 		<Text
 			value={label}
-			fontSize={9}
+			fontSize={7}
 			foreground={TEXT_SECONDARY}
 			fontDesign='rounded'
 		/>
@@ -379,15 +421,20 @@ function emptyChart(kind: ChartKind): NativeView {
 	)
 }
 
-// Enlarged tap target for a chevron: the whole NAV_TAP_W x NAV_TAP_H box is
-// tappable (the transparent rectangle fills it), not just the glyph.
+// Enlarged tap target for an arrow: the whole NAV_TAP_W x NAV_TAP_H box is
+// tappable (the transparent rectangle fills it), not just the glyph. The glyph
+// is aligned to the outer edge so it sits close to the widget border.
 const NAV_TAP_W = 40
-const NAV_TAP_H = 22 // tracks FOOTER_H in layout.ts
+const NAV_TAP_H = 24 // tracks FOOTER_H in layout.ts
 
-function navButton(intent: IntentInfo, icon: string): NativeView {
+function navButton(
+	intent: IntentInfo,
+	icon: string,
+	align: Alignment,
+): NativeView {
 	return (
 		<Button intent={intent} buttonStyle='plain'>
-			<ZStack alignment='center' width={NAV_TAP_W} height={NAV_TAP_H}>
+			<ZStack alignment={align} width={NAV_TAP_W} height={NAV_TAP_H}>
 				<Rectangle fill={['gray', 0]} width={NAV_TAP_W} height={NAV_TAP_H} />
 				<Icon value={icon} fontSize={12} foreground={TEXT_SECONDARY} />
 			</ZStack>
@@ -396,34 +443,51 @@ function navButton(intent: IntentInfo, icon: string): NativeView {
 }
 
 // Bottom paging control. Both ends reserve an equal NAV_TAP_W slot (a
-// transparent placeholder stands in for the hidden next button) so the day
-// label stays centered in the widget, not just centered after the prev button.
-// Tapping the label jumps back to today; the chevrons page one day.
+// transparent placeholder stands in for the hidden next button) so the centered
+// day label stays centered in the widget. The label is stacked over the
+// freshness ("X min ago") on today only; tapping it jumps back to today.
 function footerView(
 	entry: Entry,
+	nowMs: number,
 	prevIntent: IntentInfo,
 	nextIntent: IntentInfo,
 	todayIntent: IntentInfo,
 ): NativeView {
+	const ago = freshnessText(entry, nowMs)
 	return (
 		<HStack maxWidth>
-			{navButton(prevIntent, 'chevron.left')}
+			{navButton(prevIntent, 'arrow.left', 'leading')}
 			<Spacer />
 			<Button intent={todayIntent} buttonStyle='plain'>
-				<Text
-					value={entry.dayLabel}
-					fontSize={10}
-					foreground={TEXT_SECONDARY}
-					fontWeight={600}
-					fontDesign='rounded'
-					lineLimit={1}
-					minimumScaleFactor={0.7}
-					padding={{ horizontal: 6, vertical: 4 }}
-				/>
+				<VStack
+					spacing={0}
+					alignment='center'
+					padding={{ horizontal: 6, vertical: 2 }}
+				>
+					<Text
+						value={entry.dayLabel}
+						fontSize={9}
+						foreground={TEXT_SECONDARY}
+						fontWeight={600}
+						fontDesign='rounded'
+						lineLimit={1}
+						minimumScaleFactor={0.7}
+					/>
+					{ago !== undefined ? (
+						<Text
+							value={ago}
+							fontSize={8}
+							foreground={TEXT_SECONDARY}
+							fontWeight={500}
+							lineLimit={1}
+							minimumScaleFactor={0.7}
+						/>
+					) : undefined}
+				</VStack>
 			</Button>
 			<Spacer />
 			{entry.dayOffset > 0 ? (
-				navButton(nextIntent, 'chevron.right')
+				navButton(nextIntent, 'arrow.right', 'trailing')
 			) : (
 				<Rectangle fill={['gray', 0]} width={NAV_TAP_W} height={NAV_TAP_H} />
 			)}

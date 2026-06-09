@@ -2,7 +2,6 @@ import { expect, test } from 'bun:test'
 import { MIN_BODY } from './config'
 import type { Domain } from './health'
 import {
-	bpmTicks,
 	classifyFamily,
 	computeLayout,
 	segmentGeometry,
@@ -89,35 +88,6 @@ test('computeLayout: a degenerately narrow widget omits the y-axis', () => {
 	expect(computeLayout({ width: 100, height: 160 }, 'system').showYAxis).toBe(
 		false,
 	)
-})
-
-// bpmTicks
-
-test('bpmTicks: round 25-step stops inside a ~100bpm domain', () => {
-	expect(bpmTicks({ lo: 41, hi: 149 })).toEqual([50, 75, 100, 125])
-})
-
-test('bpmTicks: 10-step stops for a tight domain', () => {
-	expect(bpmTicks({ lo: 60, hi: 90 })).toEqual([60, 70, 80, 90])
-})
-
-test('bpmTicks: 50-step stops for a wide domain', () => {
-	expect(bpmTicks({ lo: 50, hi: 250 })).toEqual([50, 100, 150, 200, 250])
-})
-
-test('bpmTicks: every stop lies within the domain', () => {
-	for (const d of [
-		{ lo: 41, hi: 149 },
-		{ lo: 55, hi: 72 },
-		{ lo: 48, hi: 210 },
-	]) {
-		const ticks = bpmTicks(d)
-		expect(ticks.length).toBeGreaterThanOrEqual(1)
-		for (const t of ticks) {
-			expect(t).toBeGreaterThanOrEqual(d.lo)
-			expect(t).toBeLessThanOrEqual(d.hi)
-		}
-	}
 })
 
 // valueToY

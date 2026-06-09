@@ -18,10 +18,25 @@ export function formatRange(min?: number, max?: number): string {
 	return `${Math.round(min)}-${Math.round(max)}`
 }
 
-// 24-hour ticks shown under the chart at the 0/6/12/18/24 boundaries, evenly
-// spaced so labels never crowd.
-export function hourTickLabels(): string[] {
-	return ['0', '6', '12', '18', '24']
+// Hours labeled under the chart, aligned to the 0/6/12/18 gridlines.
+export const HOUR_TICKS = [0, 6, 12, 18]
+
+function pad2(n: number): string {
+	return n < 10 ? `0${n}` : `${n}`
+}
+
+// Elapsed time at minute granularity (no seconds): "just now" / "N min ago" /
+// "N hr ago". Recomputed each refresh; never churns at second resolution.
+export function formatAgo(deltaMs: number): string {
+	const minutes = Math.floor(deltaMs / 60_000)
+	if (minutes < 1) return 'just now'
+	if (minutes < 60) return `${minutes} min ago`
+	return `${Math.floor(minutes / 60)} hr ago`
+}
+
+// Two-digit hour label, e.g. 6 -> "06".
+export function formatHourTick(hour: number): string {
+	return pad2(hour)
 }
 
 const MONTHS = [

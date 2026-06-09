@@ -9,6 +9,8 @@ export type ChartKind = 'system' | 'compact' | 'inline'
 
 export type ChartLayout = {
 	padding: number
+	padTop: number
+	padBottom: number
 	spacing: number
 	axisGap: number
 	hgap: number
@@ -24,13 +26,17 @@ export type ChartLayout = {
 }
 
 // Chrome sizes, in points.
-const HEADER_H = 22
-const AXIS_H = 14
+const HEADER_H = 28 // heart | two compact stat rows
+const AXIS_H = 12
 const AXIS_GAP = 2
-const Y_LABEL_W = 22
-const HGAP = 4
-// Tall enough to host comfortable prev/next tap targets (see NAV_TAP in widget).
-const FOOTER_H = 22
+const Y_LABEL_W = 16 // snug for a 3-digit BPM at 8pt; keeps the left tight
+const HGAP = 2
+// Hosts the prev/next tap targets and a 2-line center (day label + freshness).
+const FOOTER_H = 24
+// Top/bottom insets: tighter than the sides so the stats and footer sit close
+// to their borders.
+const PAD_TOP = 8
+const PAD_BOTTOM = 8
 
 // Each hour gets an equal-width slot; the capsule fills this fraction of it,
 // the rest is breathing room. Capped so wide widgets stay thin, not fat.
@@ -49,10 +55,12 @@ export function classifyFamily(family: WidgetFamily): ChartKind {
 // Derive a chart layout from the widget's pixel size. The bar count is always
 // 24 (one per hour); bars thin down to fit rather than dropping hours.
 export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
-	const padding = kind === 'system' ? 12 : kind === 'compact' ? 4 : 0
+	const padding = kind === 'system' ? 10 : kind === 'compact' ? 4 : 0
+	const padTop = kind === 'system' ? PAD_TOP : padding
+	const padBottom = kind === 'system' ? PAD_BOTTOM : padding
 	const spacing = kind === 'system' ? 6 : 0
 	const innerW = Math.max(1, size.width - padding * 2)
-	const innerH = Math.max(1, size.height - padding * 2)
+	const innerH = Math.max(1, size.height - padTop - padBottom)
 
 	const showHeader = kind === 'system' && innerH >= 116
 	const showAxis = kind === 'system' && innerH >= 88
@@ -88,6 +96,8 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 
 	return {
 		padding,
+		padTop,
+		padBottom,
 		spacing,
 		axisGap,
 		hgap,
@@ -101,16 +111,6 @@ export function computeLayout(size: Size, kind: ChartKind): ChartLayout {
 		showYAxis,
 		showFooter,
 	}
-}
-
-// 3-5 round BPM stops within the domain for the y-axis labels and gridlines.
-export function bpmTicks(domain: Domain): number[] {
-	const span = domain.hi - domain.lo
-	const step = span <= 30 ? 10 : span <= 60 ? 20 : span <= 120 ? 25 : 50
-	const start = Math.ceil(domain.lo / step) * step
-	const ticks: number[] = []
-	for (let v = start; v <= domain.hi; v += step) ticks.push(v)
-	return ticks
 }
 
 // Map a BPM value to a y-offset from the top of the plot (0 = top = high BPM).

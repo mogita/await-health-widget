@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test'
 import {
+	formatAgo,
 	formatBpm,
 	formatDayLabel,
+	formatHourTick,
 	formatRange,
-	hourTickLabels,
 } from './format'
 
 // formatBpm
@@ -30,10 +31,19 @@ test('formatRange: missing bound renders --', () => {
 	expect(formatRange(60, undefined)).toBe('--')
 })
 
-// hourTickLabels
+// formatHourTick / formatClock
 
-test('hourTickLabels: five evenly spaced 24-hour ticks', () => {
-	expect(hourTickLabels()).toEqual(['0', '6', '12', '18', '24'])
+test('formatHourTick: zero-pads the hour', () => {
+	expect(formatHourTick(0)).toBe('00')
+	expect(formatHourTick(6)).toBe('06')
+	expect(formatHourTick(18)).toBe('18')
+})
+
+test('formatAgo: minute granularity, never seconds', () => {
+	expect(formatAgo(30_000)).toBe('just now')
+	expect(formatAgo(60_000)).toBe('1 min ago')
+	expect(formatAgo(12 * 60_000 + 45_000)).toBe('12 min ago')
+	expect(formatAgo(90 * 60_000)).toBe('1 hr ago')
 })
 
 // formatDayLabel
