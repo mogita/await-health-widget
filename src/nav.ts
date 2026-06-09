@@ -56,3 +56,8 @@ export function nextDay(): void {
 		clampDay(stepDays(readViewedDay(now), 1), today),
 	)
 }
+
+// Intent: jump straight back to today (tapping the day label).
+export function today(): void {
+	AwaitStore.set(VIEWED_DAY_KEY, midnight(new Date().getTime()))
+}

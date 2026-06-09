@@ -45,6 +45,7 @@ export function widget(
 	entry: WidgetEntry<Entry> & {
 		prevIntent: IntentInfo
 		nextIntent: IntentInfo
+		todayIntent: IntentInfo
 	},
 ): NativeView {
 	const kind = classifyFamily(entry.family)
@@ -80,7 +81,12 @@ export function widget(
 				{layout.showHeader ? headerView(entry) : undefined}
 				{body}
 				{layout.showFooter
-					? footerView(entry, entry.prevIntent, entry.nextIntent)
+					? footerView(
+							entry,
+							entry.prevIntent,
+							entry.nextIntent,
+							entry.todayIntent,
+						)
 					: undefined}
 			</VStack>
 		</ZStack>
@@ -373,37 +379,54 @@ function emptyChart(kind: ChartKind): NativeView {
 	)
 }
 
-// Bottom paging control: prev (older) on the left, the day label centered, and
-// next (newer) on the right, hidden once today is reached. Small, plain
-// buttons like the agent-usage refresh button.
+// Enlarged tap target for a chevron: the whole NAV_TAP_W x NAV_TAP_H box is
+// tappable (the transparent rectangle fills it), not just the glyph.
+const NAV_TAP_W = 40
+const NAV_TAP_H = 22 // tracks FOOTER_H in layout.ts
+
+function navButton(intent: IntentInfo, icon: string): NativeView {
+	return (
+		<Button intent={intent} buttonStyle='plain'>
+			<ZStack alignment='center' width={NAV_TAP_W} height={NAV_TAP_H}>
+				<Rectangle fill={['gray', 0]} width={NAV_TAP_W} height={NAV_TAP_H} />
+				<Icon value={icon} fontSize={12} foreground={TEXT_SECONDARY} />
+			</ZStack>
+		</Button>
+	)
+}
+
+// Bottom paging control. Both ends reserve an equal NAV_TAP_W slot (a
+// transparent placeholder stands in for the hidden next button) so the day
+// label stays centered in the widget, not just centered after the prev button.
+// Tapping the label jumps back to today; the chevrons page one day.
 function footerView(
 	entry: Entry,
 	prevIntent: IntentInfo,
 	nextIntent: IntentInfo,
+	todayIntent: IntentInfo,
 ): NativeView {
 	return (
-		<HStack maxWidth spacing={6}>
-			<Button intent={prevIntent} buttonStyle='plain'>
-				<Icon value='chevron.left' fontSize={11} foreground={TEXT_SECONDARY} />
+		<HStack maxWidth>
+			{navButton(prevIntent, 'chevron.left')}
+			<Spacer />
+			<Button intent={todayIntent} buttonStyle='plain'>
+				<Text
+					value={entry.dayLabel}
+					fontSize={10}
+					foreground={TEXT_SECONDARY}
+					fontWeight={600}
+					fontDesign='rounded'
+					lineLimit={1}
+					minimumScaleFactor={0.7}
+					padding={{ horizontal: 6, vertical: 4 }}
+				/>
 			</Button>
 			<Spacer />
-			<Text
-				value={entry.dayLabel}
-				fontSize={10}
-				foreground={TEXT_SECONDARY}
-				fontWeight={600}
-				fontDesign='rounded'
-			/>
-			<Spacer />
 			{entry.dayOffset > 0 ? (
-				<Button intent={nextIntent} buttonStyle='plain'>
-					<Icon
-						value='chevron.right'
-						fontSize={11}
-						foreground={TEXT_SECONDARY}
-					/>
-				</Button>
-			) : undefined}
+				navButton(nextIntent, 'chevron.right')
+			) : (
+				<Rectangle fill={['gray', 0]} width={NAV_TAP_W} height={NAV_TAP_H} />
+			)}
 		</HStack>
 	)
 }

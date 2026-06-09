@@ -29,7 +29,8 @@ const AXIS_H = 14
 const AXIS_GAP = 2
 const Y_LABEL_W = 22
 const HGAP = 4
-const FOOTER_H = 18
+// Tall enough to host comfortable prev/next tap targets (see NAV_TAP in widget).
+const FOOTER_H = 22
 
 // Each hour gets an equal-width slot; the capsule fills this fraction of it,
 // the rest is breathing room. Capped so wide widgets stay thin, not fat.

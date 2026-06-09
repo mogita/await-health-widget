@@ -1,5 +1,5 @@
 import type { Entry } from './health'
-import { nextDay, prevDay } from './nav'
+import { nextDay, prevDay, today } from './nav'
 import { widgetTimeline } from './timeline'
 import { widget } from './widget'
 
@@ -9,7 +9,8 @@ const app = Await.define({
 			...entry,
 			prevIntent: app.prevDay(),
 			nextIntent: app.nextDay(),
+			todayIntent: app.today(),
 		}),
 	widgetTimeline,
-	widgetIntents: { prevDay, nextDay },
+	widgetIntents: { prevDay, nextDay, today },
 })
