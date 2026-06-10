@@ -1,5 +1,6 @@
 <p align="center">
-  <h3 align="center">Await Health</h3>
+  <img src="screen.jpg?raw=true" width="270" height="480" />
+  <h3 align="center">Await - Health Widget</h3>
 </p>
 
 An [Await](https://await-app.com) widget that charts a full day of heart rate
